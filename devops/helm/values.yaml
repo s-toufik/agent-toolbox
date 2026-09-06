@@ -1,0 +1,30 @@
+replicaCount: 1
+
+image:
+  repository: agent-toolbox
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 8001
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+env:
+  APP_ENV: debug
+  APPLICATION_API_ROOT_PATH: /agent_toolbox
+  CONFIGURATION_DIR: /app/config
+  TOOLBOX_URL: http://127.0.0.1:8001/agent_toolbox/mcp
+
+secretEnv: {}
+
+probes:
+  livenessPath: /agent_toolbox/actuator/health/liveness
+  readinessPath: /agent_toolbox/actuator/health/readiness

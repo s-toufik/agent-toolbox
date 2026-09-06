@@ -1,0 +1,72 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agent_toolbox"
+version = "1.0.0"
+authors = [
+    { name = "Toufik Saouchi", email = "toufik.saouchi@gmail.com" },
+]
+description = "MCP tool server: sandboxed Python execution and read-only SQL, deployed independently of any one agent"
+readme = "Readme.md"
+requires-python = ">=3.14"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+license = "MIT"
+dependencies = [
+    "starlette",
+    "uvicorn[standard]",
+    "uvloop",
+    "mcp",
+    "pycraftcore",
+    "pydantic>=2",
+    "python-dotenv",
+]
+
+[project.scripts]
+toolbox = "bootstrap.application.toolbox_application:main"
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "pytest-cov>=7.1.0",
+    "pytest-xdist>=3.6.0",
+    "hypothesis>=6.151.9",
+    "Faker",
+    "ruff",
+    "ty",
+    "pre-commit",
+]
+
+[tool.uv.sources]
+pycraftcore = { path = "../pycraftcore", editable = true }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+
+[tool.ruff.lint]
+select = ["E", "F", "UP", "I"]
+ignore = [
+    "E501",   # line length, handled by the formatter
+    "BLE001", # blind exception, deliberate at adapter boundaries
+]
+
+[tool.ty.src]
+include = ["src", "tests"]
+exclude = [".venv"]
+
+[project.urls]
+Homepage = "https://github.com/s-toufik/agent_toolbox"

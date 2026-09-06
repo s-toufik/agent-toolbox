@@ -1,0 +1,13 @@
+application_configuration:
+  env: ${oc.env:APP_ENV,debug}
+  run: async
+
+  connector:
+    database:
+      users: ${connector.users}
+    telemetry:
+      open_telemetry: ${connector.telemetry}
+    mcp:
+      self: ${connector.self}
+
+  operation: {}

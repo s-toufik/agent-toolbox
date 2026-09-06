@@ -1,0 +1,12 @@
+connector:
+  users:
+    name: users_dashboard
+    type: database
+    engine: sqlite
+    host: ${oc.env:USER_DB_HOST}
+    port: 0
+    default_name: ${oc.env:USER_DB_NAME}
+    pool:
+      max: 4
+    auth:
+      type: none
