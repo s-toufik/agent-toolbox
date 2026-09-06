@@ -69,4 +69,4 @@ include = ["src", "tests"]
 exclude = [".venv"]
 
 [project.urls]
-Homepage = "https://github.com/s-toufik/agent_toolbox"
+Homepage = "https://github.com/s-toufik/agent-toolbox"
