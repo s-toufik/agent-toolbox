@@ -1,4 +1,4 @@
-# agent_toolbox
+# agent-toolbox
 
 An MCP tool server exposing sandboxed Python execution and read-only SQL
 against a service database. Deployed independently of any agent that talks
