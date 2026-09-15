@@ -43,7 +43,7 @@ def test_raises_when_the_configuration_directory_does_not_exist(logger, tmp_path
 def test_raises_a_value_error_when_the_loader_returns_nothing(logger, monkeypatch) -> None:
     monkeypatch.setattr(LoadApplicationConfiguration, "load", lambda self: None)
 
-    with pytest.raises(ValueError, match="No configuration loaded"):
+    with pytest.raises(ValueError, match="No schema loaded"):
         SetApplicationConfiguration(make_settings(REAL_CONFIG_DIR), logger)()
 
 

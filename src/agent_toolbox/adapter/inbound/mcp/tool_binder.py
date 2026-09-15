@@ -35,6 +35,7 @@ class ToolBinder:
                 self._handler(specification),
                 name=specification.name,
                 description=specification.description,
+                structured_output=False,
             )
             bound.append(specification.name)
         return bound
@@ -69,7 +70,7 @@ def _signature(parameters: tuple[ToolParameter, ...]) -> inspect.Signature:
                 parameter.name,
                 inspect.Parameter.KEYWORD_ONLY,
                 annotation=_annotation(parameter),
-                default=inspect.Parameter.empty if parameter.required else None,
+                default=inspect.Parameter.empty if parameter.required else parameter.default,
             )
             for parameter in parameters
         ],

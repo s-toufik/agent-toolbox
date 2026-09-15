@@ -7,7 +7,7 @@ SPECIFICATION = ToolSpecification(
     name="file_reader",
     description=(
         "This is a file reader tool. It reads a file and returns its contents. "
-        "Supported file formats: yml, csv, json "
+        "Supported file formats: yml, yaml, json, csv, json, md, txt"
         f"Current system: {sys.platform}"
     ),
     parameters=(
@@ -16,6 +16,18 @@ SPECIFICATION = ToolSpecification(
             type=ParameterType.STRING,
             description="Absolute file path to read including extension.",
             required=True,
+        ),
+        ToolParameter(
+            name="start",
+            type=ParameterType.STRING,
+            description="line number to start reading file from.",
+            required=False,
+        ),
+        ToolParameter(
+            name="count",
+            type=ParameterType.INTEGER,
+            description="maximum number of lines to read.",
+            required=False,
         ),
     ),
 )

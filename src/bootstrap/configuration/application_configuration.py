@@ -26,7 +26,7 @@ class SetApplicationConfiguration:
         directory: Path = self._settings.configuration_directory
 
         self._logger.info(
-            f"Loading '{self._settings.role}' configuration ({environment.value}) from {directory}"
+            f"Loading '{self._settings.role}' schema ({environment.value}) from {directory}"
         )
 
         if not directory.exists():

@@ -14,7 +14,6 @@ from agent_toolbox.adapter.inbound.mcp.mcp_server_factory import build_mcp_serve
 from agent_toolbox.adapter.inbound.mcp.tool_binder import ToolBinder
 from bootstrap.di.toolbox_di import ToolboxDI
 from src import (
-    APPLICATION_API_ROOT_PATH,
     APPLICATION_AUTHORS_EMAIL,
     APPLICATION_DEPLOYMENT_ENVIRONMENT,
     APPLICATION_NAME,
@@ -40,10 +39,7 @@ class ToolboxContainer(ToolboxDI):
         server: MCPServer = build_mcp_server(
             name=SERVER_NAME,
             version=SERVER_VERSION,
-            instructions=(
-                "Analytics toolbox: sandboxed Python execution and read-only SQL "
-                "against the service database."
-            ),
+            instructions=("Analytics toolbox"),
             lifespan=self._lifespan,
         )
 
@@ -52,7 +48,6 @@ class ToolboxContainer(ToolboxDI):
             app_name=APPLICATION_NAME,
             app_version=APPLICATION_VERSION,
             app_deployment_environment=APPLICATION_DEPLOYMENT_ENVIRONMENT,
-            app_api_root_path=APPLICATION_API_ROOT_PATH,
             app_authors=APPLICATION_AUTHORS_EMAIL,
         ).register_actuator_routes()
 

@@ -49,7 +49,7 @@ class StubCode:
         self._stderr = stderr
 
     async def execute(self):
-        from pycraftcore.runtime.configuration import CodeStdout
+        from pycraftcore.runtime.schema import CodeStdout
 
         return CodeStdout(stdout=self._stdout, stderr=self._stderr)
 

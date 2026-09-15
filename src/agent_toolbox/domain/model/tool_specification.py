@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Any
 
 from agent_toolbox.domain.enum.parameter_type import ParameterType
 
@@ -9,6 +10,7 @@ class ToolParameter:
     type: ParameterType
     description: str
     required: bool = True
+    default: Any = None
 
 
 @dataclass(frozen=True, slots=True)
