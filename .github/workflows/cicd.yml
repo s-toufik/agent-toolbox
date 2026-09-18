@@ -27,12 +27,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip uv
-          # pyproject.toml points pycraftcore at a local ../pycraftcore path for
-          # editable local dev; that path doesn't exist in this checkout, so
-          # re-lock ignoring tool.uv.sources first -- this resolves pycraftcore
-          # fresh from PyPI -- then sync from that.
-          uv lock --no-sources
-          uv sync --no-sources
+          uv sync --frozen
 
       - name: Run ruff
         run: |
@@ -59,8 +54,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip uv
-          uv lock --no-sources
-          uv sync --no-sources
+          uv sync --frozen
 
       - name: Run ty
         run: |
@@ -73,6 +67,8 @@ jobs:
       image: python:3.14
     needs: typecheck
     env:
+      # config/debug/connector/*.yml interpolates these; nothing here needs to
+      # be reachable for the test suite to pass (it mocks/stubs real I/O).
       APP_ENV: debug
       OTEL_HOST: localhost
       OTEL_PORT: "4317"
@@ -94,8 +90,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip uv
-          uv lock --no-sources
-          uv sync --no-sources
+          uv sync --frozen
 
       - name: Run tests
         run: |

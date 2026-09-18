@@ -37,7 +37,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "mcp" },
-    { name = "pycraftcore", editable = "../pycraftcore" },
+    { name = "pycraftcore", specifier = ">=1.2.0" },
     { name = "pydantic", specifier = ">=2" },
     { name = "python-dotenv" },
     { name = "starlette" },
@@ -790,8 +790,8 @@ name = "httpcore2"
 version = "2.13.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "h11", marker = "sys_platform != 'emscripten'" },
-    { name = "truststore", marker = "sys_platform != 'emscripten'" },
+    { name = "h11" },
+    { name = "truststore" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/15/8c/e925b1c92018abb3a1863ce1549d76d2381e334d21d65d4ac8f65dabd78a/httpcore2-2.13.0.tar.gz", hash = "sha256:2adc8be4fb285fbcd6d894298db3b52c177e74b6674eda3a76bd36be3292a3db", size = 67740, upload-time = "2026-09-14T14:18:04.717Z" }
 wheels = [
@@ -1835,7 +1835,7 @@ wheels = [
 [[package]]
 name = "pycraftcore"
 version = "1.2.0"
-source = { editable = "../pycraftcore" }
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiobreaker" },
     { name = "aiohttp" },
@@ -1865,48 +1865,9 @@ dependencies = [
     { name = "starlette" },
     { name = "tenacity" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "aiobreaker" },
-    { name = "aiohttp" },
-    { name = "aiosqlite" },
-    { name = "asyncpg" },
-    { name = "httpx" },
-    { name = "loguru", specifier = ">=0.7.3" },
-    { name = "matplotlib" },
-    { name = "msgpack", specifier = ">=1.1.2" },
-    { name = "numpy" },
-    { name = "omegaconf" },
-    { name = "opentelemetry-api" },
-    { name = "opentelemetry-exporter-otlp" },
-    { name = "opentelemetry-instrumentation-logging", specifier = ">=0.65b0" },
-    { name = "opentelemetry-sdk" },
-    { name = "orjson" },
-    { name = "pandas" },
-    { name = "psycopg", extras = ["binary"] },
-    { name = "psycopg-pool" },
-    { name = "pydantic", specifier = ">=2" },
-    { name = "pyinstrument" },
-    { name = "pymongo", specifier = ">=4.9,<4.18" },
-    { name = "python-dotenv" },
-    { name = "pyyaml" },
-    { name = "scipy", specifier = ">=1.17.1" },
-    { name = "sqlglot" },
-    { name = "starlette" },
-    { name = "tenacity" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "hypothesis", specifier = ">=6.151.9" },
-    { name = "pre-commit" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "pytest-cov", specifier = ">=7.1.0" },
-    { name = "ruff" },
-    { name = "scipy-stubs", specifier = ">=1.17.1.3" },
-    { name = "ty" },
+sdist = { url = "https://files.pythonhosted.org/packages/d6/e9/235914c43076d461b152377b278428358e320fb76587a9feef3db6fa8956/pycraftcore-1.2.0.tar.gz", hash = "sha256:0f20819e7dc3ba89e6a8e7755f2767d8388f0dbd6e109121f9f22912b6728857", size = 44108, upload-time = "2026-09-18T14:38:16.819Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ba/79/4ff76537eb1b1f6ab0f05722ad1fbba21a822067c8a37e73d671c81d5d98/pycraftcore-1.2.0-py3-none-any.whl", hash = "sha256:ec58ca55a16527542c2d81348b2762beb364d4624a9d788790a49f584f27bfe4", size = 90146, upload-time = "2026-09-18T14:38:15.757Z" },
 ]
 
 [[package]]
