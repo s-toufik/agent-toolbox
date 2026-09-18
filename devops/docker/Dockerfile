@@ -7,8 +7,7 @@ COPY pyproject.toml uv.lock* ./
 COPY src ./src
 COPY Readme.md ./
 
-RUN uv lock --no-sources \
- && uv sync --no-dev --no-editable --no-sources
+RUN uv sync --no-dev --no-editable --frozen
 
 FROM python:3.14-slim
 
