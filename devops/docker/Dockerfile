@@ -7,7 +7,8 @@ COPY pyproject.toml uv.lock* ./
 COPY src ./src
 COPY Readme.md ./
 
-RUN uv sync --no-dev --no-editable
+RUN uv lock --no-sources \
+ && uv sync --no-dev --no-editable --no-sources
 
 FROM python:3.14-slim
 
@@ -17,10 +18,13 @@ WORKDIR /app
 COPY --from=builder /build/.venv /app/.venv
 COPY src ./src
 COPY config ./config
+RUN cp -r config/debug config/deploy
 
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONPATH="/app/src" \
     CONFIGURATION_DIR="/app/config"
+
+RUN mkdir -p /data/sqlite /data/vault && chown -R app:app /data
 
 USER app
 EXPOSE 8001

@@ -18,7 +18,6 @@ def make_client(*, with_tool: bool = False) -> TestClient:
         app_name="toolbox",
         app_version="1.0.0",
         app_deployment_environment="debug",
-        app_api_root_path="/agentic",
         app_authors="dev@example.com",
     ).register_actuator_routes()
 
@@ -28,7 +27,7 @@ def make_client(*, with_tool: bool = False) -> TestClient:
 def test_health_is_always_up() -> None:
     client = make_client()
 
-    response = client.get("/agentic/actuator/health")
+    response = client.get(f"{ActuatorRouter.PREFIX}/health")
 
     assert response.status_code == 200
     assert response.json() == {"status": "UP"}
@@ -37,7 +36,7 @@ def test_health_is_always_up() -> None:
 def test_liveness_is_always_up() -> None:
     client = make_client()
 
-    response = client.get("/agentic/actuator/health/liveness")
+    response = client.get(f"{ActuatorRouter.PREFIX}/health/liveness")
 
     assert response.status_code == 200
     assert response.json() == {"status": "UP"}
@@ -46,7 +45,7 @@ def test_liveness_is_always_up() -> None:
 def test_readiness_is_down_with_no_tools_registered() -> None:
     client = make_client()
 
-    response = client.get("/agentic/actuator/health/readiness")
+    response = client.get(f"{ActuatorRouter.PREFIX}/health/readiness")
 
     assert response.status_code == 503
     assert response.json() == {"status": "DOWN"}
@@ -55,7 +54,7 @@ def test_readiness_is_down_with_no_tools_registered() -> None:
 def test_readiness_is_up_once_a_tool_is_registered() -> None:
     client = make_client(with_tool=True)
 
-    response = client.get("/agentic/actuator/health/readiness")
+    response = client.get(f"{ActuatorRouter.PREFIX}/health/readiness")
 
     assert response.status_code == 200
     assert response.json() == {"status": "UP"}
@@ -64,12 +63,11 @@ def test_readiness_is_up_once_a_tool_is_registered() -> None:
 def test_info_reports_the_constructor_fields() -> None:
     client = make_client()
 
-    response = client.get("/agentic/actuator/info")
+    response = client.get(f"{ActuatorRouter.PREFIX}/info")
 
     assert response.json() == {
         "name": "toolbox",
         "version": "1.0.0",
         "environment": "debug",
-        "api_root_path": "/agentic",
         "authors": "dev@example.com",
     }

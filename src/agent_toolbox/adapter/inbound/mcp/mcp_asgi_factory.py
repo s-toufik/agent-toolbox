@@ -22,7 +22,7 @@ def build_mcp_asgi_app(server: MCPServer, connector: McpConnector) -> Starlette:
         ),
     )
 
-    app.add_middleware(GZipMiddleware, minimum_size=1024)  # type: ignore
-    app.add_middleware(RequestIDMiddleware)  # type: ignore
+    app.add_middleware(GZipMiddleware, minimum_size=1024)
+    app.add_middleware(RequestIDMiddleware)
 
     return app

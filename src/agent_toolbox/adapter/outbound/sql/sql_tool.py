@@ -1,6 +1,7 @@
 import asyncio
 from typing import Any
 
+import orjson
 from pycraftcore.query_language.port import QueryFactory, QueryHandler
 from pycraftcore.repository.port import AsyncRepository
 
@@ -44,4 +45,4 @@ class SqlTool:
         except Exception as exception:
             return ToolOutcome.failure(invocation, f"SQL execution error: {exception}")
 
-        return ToolOutcome.success(invocation, str(rows))
+        return ToolOutcome.success(invocation, orjson.dumps(rows, default=str).decode())

@@ -25,7 +25,7 @@ class StubFileHandlerFactory:
         self._write_error = write_error
         self.written: Any = None
 
-    def read(self) -> Any:
+    def read(self, read_chunk_mode: Any = None, start: Any = None, count: Any = None) -> Any:
         if self._read_error:
             raise self._read_error
         return self._read_result
@@ -55,7 +55,7 @@ class StubCode:
 
 
 def code_factory(stdout: str = "", stderr: str = ""):
-    def factory(code: str, code_template=None):
+    def factory(code: str, code_template=None, host_bridge=None):
         return StubCode(stdout, stderr)
 
     return factory
@@ -133,7 +133,7 @@ async def test_sql_tool_executes_the_transpiled_statement() -> None:
     )
 
     assert repository.executed == ["select 1"]
-    assert outcome.output == "[{'n': 1}]"
+    assert outcome.output == '[{"n":1}]'
 
 
 async def test_sql_tool_never_reaches_the_database_on_invalid_sql() -> None:
@@ -193,7 +193,7 @@ async def test_file_reader_tool_returns_the_read_result() -> None:
     )
 
     assert not outcome.failed
-    assert outcome.output == "{'a': 1}"
+    assert outcome.output == '{"a":1}'
 
 
 async def test_file_reader_tool_rejects_empty_file_path() -> None:

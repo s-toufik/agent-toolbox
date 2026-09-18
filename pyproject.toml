@@ -21,7 +21,7 @@ dependencies = [
     "uvicorn[standard]",
     "uvloop",
     "mcp",
-    "pycraftcore",
+    "pycraftcore>=1.2.0",
     "pydantic>=2",
     "python-dotenv",
 ]
@@ -65,8 +65,8 @@ ignore = [
 ]
 
 [tool.ty.src]
-include = ["src", "tests"]
-exclude = [".venv"]
+include = ["src"]
+exclude = [".venv", "tests"]
 
 [project.urls]
 Homepage = "https://github.com/s-toufik/agent-toolbox"

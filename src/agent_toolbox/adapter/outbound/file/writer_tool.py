@@ -45,4 +45,6 @@ class FileWriterTool:
         except Exception as exception:
             return ToolOutcome.failure(invocation, str(exception))
 
-        return ToolOutcome.success(invocation, output="Data written successfully")
+        return ToolOutcome.success(
+            invocation, output=orjson.dumps("Data written successfully").decode()
+        )

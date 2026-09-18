@@ -1,6 +1,7 @@
 import asyncio
 from typing import Any
 
+import orjson
 from pycraftcore.file_handler.enum.read_chunk_mode import ReadChunkMode
 from pycraftcore.file_handler.port import FileHandlerFactory, FileHandlerProvider
 
@@ -45,4 +46,4 @@ class FileReaderTool:
         except Exception as exception:
             return ToolOutcome.failure(invocation, str(exception))
 
-        return ToolOutcome.success(invocation, str(result))
+        return ToolOutcome.success(invocation, orjson.dumps(result, default=str).decode())

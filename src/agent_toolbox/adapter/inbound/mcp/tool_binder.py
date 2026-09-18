@@ -34,7 +34,7 @@ class ToolBinder:
             server.add_tool(
                 self._handler(specification),
                 name=specification.name,
-                description=specification.description,
+                description=_description(specification),
                 structured_output=False,
             )
             bound.append(specification.name)
@@ -61,6 +61,12 @@ class ToolBinder:
         handler.__signature__ = _signature(specification.parameters)  # ty: ignore[unresolved-attribute]
         handler.__annotations__ = _annotations(specification.parameters)
         return handler
+
+
+def _description(specification: ToolSpecification) -> str:
+    if not specification.returns:
+        return specification.description
+    return f"{specification.description} Returns: {specification.returns}"
 
 
 def _signature(parameters: tuple[ToolParameter, ...]) -> inspect.Signature:

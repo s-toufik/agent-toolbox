@@ -12,8 +12,6 @@ def test_toolbox_container_satisfies_the_container_protocol() -> None:
         role="toolbox",
         environment="debug",
         configuration_directory=REAL_CONFIG_DIR,
-        host="0.0.0.0",
-        port=8001,
     )
 
     assert isinstance(ToolboxContainer(settings), Container)

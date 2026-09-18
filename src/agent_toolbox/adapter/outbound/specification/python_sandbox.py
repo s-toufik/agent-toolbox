@@ -26,9 +26,9 @@ _VAULT_DESCRIPTION = (
 
 _TOOLS_DESCRIPTION = (
     "Inside your code these toolbox tools are available as functions that return the "
-    "tool's text output (optional arguments show their default value): {functions}. "
-    "Call them with keyword arguments and parse results with json.loads when needed; "
-    "a failing tool raises an exception."
+    "tool's result already parsed into a native Python value, matching the 'Returns' shape "
+    "listed for each one (optional arguments show their default value): {functions}. "
+    "Call them with keyword arguments; a failing tool raises an exception."
 )
 
 
@@ -65,4 +65,5 @@ def specification(
                 required=True,
             ),
         ),
+        returns='object {"__type__": <python type name of result>, "result": <the value assigned to \'result\', default=str>}.',
     )

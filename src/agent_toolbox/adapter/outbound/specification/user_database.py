@@ -28,4 +28,5 @@ SPECIFICATION = ToolSpecification(
             required=False,
         ),
     ),
+    returns="array of row objects.",
 )

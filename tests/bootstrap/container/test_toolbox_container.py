@@ -5,9 +5,9 @@ from mcp.server.mcpserver import MCPServer
 from starlette.applications import Starlette
 from starlette.testclient import TestClient
 
+from agent_toolbox.adapter.inbound.mcp.actuator import ActuatorRouter
 from bootstrap.configuration.settings import ProcessSettings
 from bootstrap.container.toolbox_container import ToolboxContainer
-from src import APPLICATION_API_ROOT_PATH
 
 REAL_CONFIG_DIR = Path(__file__).resolve().parents[3] / "config"
 
@@ -26,8 +26,6 @@ def make_settings() -> ProcessSettings:
         role="toolbox",
         environment="debug",
         configuration_directory=REAL_CONFIG_DIR,
-        host="0.0.0.0",
-        port=8001,
     )
 
 
@@ -63,7 +61,7 @@ async def test_entering_the_asgi_app_boots_real_tools_and_health_reports_ok() ->
     container = ToolboxContainer(make_settings())
 
     with TestClient(container.asgi_app, base_url="http://127.0.0.1:8001") as client:
-        response = client.get(f"{APPLICATION_API_ROOT_PATH}/actuator/health/readiness")
+        response = client.get(f"{ActuatorRouter.PREFIX}/health/readiness")
 
     assert response.status_code == 200
     assert response.json() == {"status": "UP"}

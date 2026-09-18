@@ -19,7 +19,7 @@ SPECIFICATION = ToolSpecification(
         ),
         ToolParameter(
             name="start",
-            type=ParameterType.STRING,
+            type=ParameterType.INTEGER,
             description="line number to start reading file from.",
             required=False,
         ),
@@ -29,5 +29,9 @@ SPECIFICATION = ToolSpecification(
             description="maximum number of lines to read.",
             required=False,
         ),
+    ),
+    returns=(
+        "str (txt, md), object (json, yml/yaml), array of objects with string values (csv), "
+        "or array of str (when start/count are given, one entry per line)."
     ),
 )

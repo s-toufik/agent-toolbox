@@ -12,8 +12,6 @@ def make_di(tmp_path: Path) -> ToolboxDI:
             role="toolbox",
             environment="debug",
             configuration_directory=REAL_CONFIG_DIR,
-            host="0.0.0.0",
-            port=8001,
         )
     )
 
@@ -29,7 +27,7 @@ def test_python_tool_is_wired_to_the_python_executor_specification(tmp_path, mon
     _set_required_env(monkeypatch, tmp_path)
     di = make_di(tmp_path)
 
-    tool = di._python_tool()
+    tool = di._python_tool([])
 
     assert tool.specification.name == "python_executor"
 

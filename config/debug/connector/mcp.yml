@@ -2,7 +2,7 @@ connector:
   self:
     name: toolbox
     type: mcp
-    base_url: ${oc.env:TOOLBOX_URL,http://127.0.0.1:8001/mcp}
+    base_url: ${oc.env:TOOLBOX_URL}
     timeout: 30
     transport: streamable_http
     auth:

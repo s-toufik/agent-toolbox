@@ -29,4 +29,5 @@ SPECIFICATION = ToolSpecification(
             required=True,
         ),
     ),
+    returns="str confirmation message.",
 )

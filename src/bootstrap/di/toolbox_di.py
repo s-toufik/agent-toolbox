@@ -5,6 +5,7 @@ from pathlib import Path
 
 from pycraftcore.application_configuration.model.connector import DatabaseConnector
 from pycraftcore.file_handler.adapter import Handler
+from pycraftcore.http.context.request_context import request_id_context
 from pycraftcore.query_language.adapter import SqlHandlerFactory
 from pycraftcore.repository.adapter import SqliteRepositoryFactory, SqliteSettingsMapper
 from pycraftcore.repository.port import AsyncRepository, AsyncRepositoryFactory
@@ -35,7 +36,10 @@ def _tool_signature(specification: ToolSpecification) -> str:
         for parameter in specification.parameters
     ]
 
-    return f"{specification.name}({', '.join(arguments)})"
+    signature = f"{specification.name}({', '.join(arguments)})"
+    if not specification.returns:
+        return signature
+    return f"{signature} -> {specification.returns}"
 
 
 def _tool_defaults(specification: ToolSpecification) -> dict[str, object]:
@@ -103,7 +107,13 @@ class ToolboxDI(BaseDI):
         }
 
         def factory() -> ToolBridgeServer:
-            return ToolBridgeServer(use_case, names, secrets.token_hex(16), tool_defaults=defaults)
+            return ToolBridgeServer(
+                use_case,
+                names,
+                secrets.token_hex(16),
+                tool_defaults=defaults,
+                context_id=request_id_context.get(),
+            )
 
         return factory
 

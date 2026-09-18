@@ -39,7 +39,7 @@ class SetApplicationConfiguration:
 
         configuration = loader.load()
         if configuration is None:
-            exception = ValueError("No configuration loaded")
+            exception = ValueError("No schema loaded")
             self._logger.critical(str(exception))
             raise exception
 

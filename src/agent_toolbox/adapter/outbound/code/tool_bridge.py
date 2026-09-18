@@ -19,6 +19,7 @@ class ToolBridgeServer:
         tool_defaults: dict[str, dict[str, Any]] | None = None,
         max_calls: int = 200,
         call_timeout: float = 30.0,
+        context_id: str | None = None,
     ) -> None:
         self._use_case: ExecuteToolUseCase = use_case
         self._tool_names: tuple[str, ...] = tuple(tool_names)
@@ -29,6 +30,9 @@ class ToolBridgeServer:
         self._server: asyncio.AbstractServer | None = None
         self._host = "127.0.0.1"
         self._port = 0
+        self._context_id = (
+            f"sandbox_{context_id}" if context_id else f"sandbox_{uuid.uuid4().hex[:8]}"
+        )
 
     @property
     def host(self) -> str:
@@ -136,7 +140,7 @@ class ToolBridgeServer:
         }
 
         invocation = ToolInvocation(
-            id=f"sandbox_{uuid.uuid4().hex[:8]}",
+            id=self._context_id,
             name=name,
             arguments=arguments,
         )

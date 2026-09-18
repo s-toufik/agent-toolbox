@@ -11,8 +11,6 @@ def make_settings(role: str = "toolbox") -> ProcessSettings:
         role=role,
         environment="debug",
         configuration_directory=REAL_CONFIG_DIR,
-        host="0.0.0.0",
-        port=8001,
     )
 
 
