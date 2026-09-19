@@ -62,3 +62,43 @@ def test_defaults_to_slash_mcp_when_the_connector_url_has_no_path() -> None:
         )
 
     assert response.status_code == 200
+
+
+def _initialize_request(host: str) -> dict:
+    return {
+        "json": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "protocolVersion": "2024-11-05",
+                "capabilities": {},
+                "clientInfo": {"name": "t", "version": "0"},
+            },
+        },
+        "headers": {"Accept": "application/json, text/event-stream", "Host": host},
+    }
+
+
+def test_a_host_from_toolbox_extra_allowed_hosts_is_accepted(monkeypatch) -> None:
+    monkeypatch.setenv("TOOLBOX_EXTRA_ALLOWED_HOSTS", "sirius:8001, other-host:9000")
+
+    server = build_mcp_server(name="toolbox", version="1.0.0")
+    app = build_mcp_asgi_app(server, make_connector("http://localhost:8001/mcp"))
+
+    with TestClient(app, base_url="http://localhost:8001") as client:
+        response = client.post("/mcp", **_initialize_request("sirius:8001"))
+
+    assert response.status_code == 200
+
+
+def test_a_host_not_in_the_allowed_list_is_still_rejected(monkeypatch) -> None:
+    monkeypatch.delenv("TOOLBOX_EXTRA_ALLOWED_HOSTS", raising=False)
+
+    server = build_mcp_server(name="toolbox", version="1.0.0")
+    app = build_mcp_asgi_app(server, make_connector("http://localhost:8001/mcp"))
+
+    with TestClient(app, base_url="http://localhost:8001") as client:
+        response = client.post("/mcp", **_initialize_request("not-allowed:8001"))
+
+    assert response.status_code == 421

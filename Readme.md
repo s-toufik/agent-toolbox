@@ -54,6 +54,14 @@ clients use to reach this service; it's used to derive this server's own
 ASGI mount path and allowed host, not to bind the listener (the listener's
 host/port come from the `--host`/`--port` flags passed to `uvicorn`).
 
+Only the Host header matching `TOOLBOX_URL` is accepted by default (DNS
+rebinding protection, from the `mcp` SDK's transport security) -- any other
+Host gets a `421 Invalid Host header`. If another client reaches this
+service a different way (e.g. a LAN hostname, testing directly from
+Postman), add it to `TOOLBOX_EXTRA_ALLOWED_HOSTS` (comma-separated) instead
+of changing `TOOLBOX_URL`, which would break clients using the original
+host.
+
 ---
 
 ## Logging
