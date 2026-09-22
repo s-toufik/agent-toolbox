@@ -1,5 +1,6 @@
 import sys
 
+from agent_toolbox.adapter.outbound.file.model.file_write_result import FileWriteResult
 from agent_toolbox.domain.enum.parameter_type import ParameterType
 from agent_toolbox.domain.model.tool_specification import ToolParameter, ToolSpecification
 
@@ -29,5 +30,5 @@ SPECIFICATION = ToolSpecification(
             required=True,
         ),
     ),
-    returns="str confirmation message.",
+    output_type=FileWriteResult,
 )

@@ -4,6 +4,7 @@ from typing import Any
 import orjson
 from pycraftcore.file_handler.port import FileHandlerFactory, FileHandlerProvider
 
+from agent_toolbox.adapter.outbound.file.model.file_write_result import FileWriteResult
 from agent_toolbox.domain.model.tool_invocation import ToolInvocation
 from agent_toolbox.domain.model.tool_outcome import ToolOutcome
 from agent_toolbox.domain.model.tool_specification import ToolSpecification
@@ -22,7 +23,7 @@ class FileWriterTool:
     def specification(self) -> ToolSpecification:
         return self._specification
 
-    async def invoke(self, invocation: ToolInvocation) -> ToolOutcome:
+    async def invoke(self, invocation: ToolInvocation) -> ToolOutcome[FileWriteResult]:
         file_path: str = invocation.argument("file_path", "") or ""
         raw_data: str = invocation.argument("data", "") or ""
 
@@ -45,6 +46,4 @@ class FileWriterTool:
         except Exception as exception:
             return ToolOutcome.failure(invocation, str(exception))
 
-        return ToolOutcome.success(
-            invocation, output=orjson.dumps("Data written successfully").decode()
-        )
+        return ToolOutcome.success(invocation, FileWriteResult(path=file_path))

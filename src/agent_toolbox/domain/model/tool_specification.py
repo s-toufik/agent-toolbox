@@ -18,4 +18,4 @@ class ToolSpecification:
     name: str
     description: str
     parameters: tuple[ToolParameter, ...] = ()
-    returns: str = ""
+    output_type: Any = str

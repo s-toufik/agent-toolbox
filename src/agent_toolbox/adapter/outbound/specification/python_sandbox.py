@@ -1,5 +1,8 @@
 from pycraftcore.runtime.adapter.python.python_runner_template import PYTHON_ALLOWLIST
 
+from agent_toolbox.adapter.outbound.code.model.python_execution_result import (
+    PythonExecutionResult,
+)
 from agent_toolbox.domain.enum.parameter_type import ParameterType
 from agent_toolbox.domain.model.tool_specification import ToolParameter, ToolSpecification
 
@@ -26,8 +29,8 @@ _VAULT_DESCRIPTION = (
 
 _TOOLS_DESCRIPTION = (
     "Inside your code these toolbox tools are available as functions that return the "
-    "tool's result already parsed into a native Python value, matching the 'Returns' shape "
-    "listed for each one (optional arguments show their default value): {functions}. "
+    "tool's result already parsed into a native Python value, shaped like the result type "
+    "named for each one (optional arguments show their default value): {functions}. "
     "Call them with keyword arguments; a failing tool raises an exception."
 )
 
@@ -65,5 +68,5 @@ def specification(
                 required=True,
             ),
         ),
-        returns='object {"__type__": <python type name of result>, "result": <the value assigned to \'result\', default=str>}.',
+        output_type=PythonExecutionResult,
     )

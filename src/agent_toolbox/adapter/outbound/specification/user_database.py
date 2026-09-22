@@ -1,5 +1,6 @@
 from pycraftcore.query_language.constants import FORBIDDEN_SQL_EXPRESSIONS
 
+from agent_toolbox.adapter.outbound.sql.model.sql_query_result import SqlQueryResult
 from agent_toolbox.domain.enum.parameter_type import ParameterType
 from agent_toolbox.domain.model.tool_specification import ToolParameter, ToolSpecification
 
@@ -28,5 +29,5 @@ SPECIFICATION = ToolSpecification(
             required=False,
         ),
     ),
-    returns="array of row objects.",
+    output_type=SqlQueryResult,
 )

@@ -97,23 +97,25 @@ def semaphore() -> asyncio.Semaphore:
     return asyncio.Semaphore(1)
 
 
-async def test_python_tool_returns_stdout(semaphore) -> None:
-    tool = PythonTool(code_factory(stdout="42"), SPEC, semaphore)
+async def test_python_tool_returns_the_typed_result(semaphore) -> None:
+    tool = PythonTool(code_factory(stdout='{"__type__": "int", "result": 42}'), SPEC, semaphore)
 
     outcome = await tool.invoke(ToolInvocation(id="1", name="tool", arguments={"code": "x=1"}))
 
-    assert outcome.output == "42"
     assert not outcome.failed
+    assert outcome.output.result_type == "int"
+    assert outcome.output.result == 42
 
 
-async def test_python_tool_keeps_stdout_alongside_stderr(semaphore) -> None:
+async def test_python_tool_folds_partial_stdout_into_the_error_on_failure(semaphore) -> None:
     tool = PythonTool(code_factory(stdout="partial", stderr="boom"), SPEC, semaphore)
 
     outcome = await tool.invoke(ToolInvocation(id="1", name="tool", arguments={"code": "x=1"}))
 
     assert outcome.failed
-    assert "partial" in outcome.content
-    assert "boom" in outcome.content
+    assert outcome.output is None
+    assert "partial" in (outcome.error or "")
+    assert "boom" in (outcome.error or "")
 
 
 async def test_python_tool_rejects_empty_code(semaphore) -> None:
@@ -133,7 +135,7 @@ async def test_sql_tool_executes_the_transpiled_statement() -> None:
     )
 
     assert repository.executed == ["select 1"]
-    assert outcome.output == '[{"n":1}]'
+    assert outcome.output.rows == [{"n": 1}]
 
 
 async def test_sql_tool_never_reaches_the_database_on_invalid_sql() -> None:
@@ -184,7 +186,7 @@ def test_python_tool_exposes_its_specification(semaphore) -> None:
     assert tool.specification is SPEC
 
 
-async def test_file_reader_tool_returns_the_read_result() -> None:
+async def test_file_reader_tool_returns_a_structured_result_for_a_dict() -> None:
     factory = StubFileHandlerFactory(read_result={"a": 1})
     tool = FileReaderTool(file_handler_provider(factory), SPEC)
 
@@ -193,7 +195,49 @@ async def test_file_reader_tool_returns_the_read_result() -> None:
     )
 
     assert not outcome.failed
-    assert outcome.output == '{"a":1}'
+    assert outcome.output.format == "structured"
+    assert outcome.output.data == {"a": 1}
+
+
+async def test_file_reader_tool_returns_a_text_result_for_a_str() -> None:
+    factory = StubFileHandlerFactory(read_result="hello world")
+    tool = FileReaderTool(file_handler_provider(factory), SPEC)
+
+    outcome = await tool.invoke(
+        ToolInvocation(id="1", name="tool", arguments={"file_path": "/tmp/x.txt"})
+    )
+
+    assert not outcome.failed
+    assert outcome.output.format == "text"
+    assert outcome.output.text == "hello world"
+
+
+async def test_file_reader_tool_returns_a_rows_result_for_a_list() -> None:
+    factory = StubFileHandlerFactory(read_result=[{"a": "1"}, {"a": "2"}])
+    tool = FileReaderTool(file_handler_provider(factory), SPEC)
+
+    outcome = await tool.invoke(
+        ToolInvocation(id="1", name="tool", arguments={"file_path": "/tmp/x.csv"})
+    )
+
+    assert not outcome.failed
+    assert outcome.output.format == "rows"
+    assert outcome.output.rows == [{"a": "1"}, {"a": "2"}]
+
+
+async def test_file_reader_tool_returns_a_lines_result_when_start_or_count_given() -> None:
+    factory = StubFileHandlerFactory(read_result=["line one\n", "line two\n"])
+    tool = FileReaderTool(file_handler_provider(factory), SPEC)
+
+    outcome = await tool.invoke(
+        ToolInvocation(
+            id="1", name="tool", arguments={"file_path": "/tmp/x.txt", "start": 0, "count": 2}
+        )
+    )
+
+    assert not outcome.failed
+    assert outcome.output.format == "lines"
+    assert outcome.output.lines == ["line one\n", "line two\n"]
 
 
 async def test_file_reader_tool_rejects_empty_file_path() -> None:
@@ -247,6 +291,7 @@ async def test_file_writer_tool_parses_json_object_data_and_writes_it() -> None:
 
     assert not outcome.failed
     assert factory.written == {"a": 1}
+    assert outcome.output.path == "/tmp/x.json"
 
 
 async def test_file_writer_tool_parses_json_array_data() -> None:

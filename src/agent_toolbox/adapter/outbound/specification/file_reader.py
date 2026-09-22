@@ -1,5 +1,6 @@
 import sys
 
+from agent_toolbox.adapter.outbound.file.model.file_read_result import FileReadResult
 from agent_toolbox.domain.enum.parameter_type import ParameterType
 from agent_toolbox.domain.model.tool_specification import ToolParameter, ToolSpecification
 
@@ -30,8 +31,5 @@ SPECIFICATION = ToolSpecification(
             required=False,
         ),
     ),
-    returns=(
-        "str (txt, md), object (json, yml/yaml), array of objects with string values (csv), "
-        "or array of str (when start/count are given, one entry per line)."
-    ),
+    output_type=FileReadResult,
 )

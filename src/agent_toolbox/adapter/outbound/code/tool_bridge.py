@@ -83,9 +83,9 @@ class ToolBridgeServer:
                 calls += 1
                 over_quota: bool = calls > self._max_calls
 
-                response: dict[str, str | None] = (
+                response: dict[str, Any] = (
                     {
-                        "output": "",
+                        "output": None,
                         "error": "Tool call quota exceeded.",
                     }
                     if over_quota
@@ -107,18 +107,18 @@ class ToolBridgeServer:
     async def _respond(
         self,
         line: bytes,
-    ) -> dict[str, str | None]:
+    ) -> dict[str, Any]:
         try:
             request: Any = json.loads(line)
         except json.JSONDecodeError:
             return {
-                "output": "",
+                "output": None,
                 "error": "Malformed request.",
             }
 
         if request.get("token") != self._token:
             return {
-                "output": "",
+                "output": None,
                 "error": "Unauthorized.",
             }
 
@@ -126,7 +126,7 @@ class ToolBridgeServer:
 
         if name not in self._tool_names:
             return {
-                "output": "",
+                "output": None,
                 "error": f"Tool {name!r} is not available in the sandbox.",
             }
 
@@ -152,11 +152,13 @@ class ToolBridgeServer:
             )
         except TimeoutError:
             return {
-                "output": "",
+                "output": None,
                 "error": "Tool call timed out.",
             }
 
         return {
-            "output": outcome.output,
+            "output": outcome.output.model_dump(mode="json")
+            if outcome.output is not None
+            else None,
             "error": outcome.error,
         }

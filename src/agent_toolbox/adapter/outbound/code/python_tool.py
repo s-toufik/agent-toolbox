@@ -1,4 +1,5 @@
 import asyncio
+import json
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 
@@ -6,6 +7,9 @@ from pycraftcore.runtime import Code, CodeFactory
 from pycraftcore.runtime.schema import CodeStdout
 from pycraftcore.runtime.schema.host_bridge import HostBridgeConfig
 
+from agent_toolbox.adapter.outbound.code.model.python_execution_result import (
+    PythonExecutionResult,
+)
 from agent_toolbox.adapter.outbound.code.tool_bridge import ToolBridgeServer
 from agent_toolbox.domain.model.tool_invocation import ToolInvocation
 from agent_toolbox.domain.model.tool_outcome import ToolOutcome
@@ -29,11 +33,11 @@ class PythonTool:
     def specification(self) -> ToolSpecification:
         return self._specification
 
-    async def invoke(self, invocation: ToolInvocation) -> ToolOutcome:
+    async def invoke(self, invocation: ToolInvocation) -> ToolOutcome[PythonExecutionResult]:
         code: str = invocation.arguments.get("code", "") or ""
 
         if not code.strip():
-            return ToolOutcome.failure(invocation, error="No code provided.")
+            return ToolOutcome.failure(invocation, "No code provided.")
 
         async with self._bridge() as host_bridge:
             executor: Code = self._code_factory(
@@ -46,15 +50,17 @@ class PythonTool:
                 result: CodeStdout = await executor.execute()
 
         if result.stderr:
-            return ToolOutcome.failure(
-                invocation,
-                error=result.stderr,
-                output=result.stdout,
+            error = (
+                result.stderr
+                if not result.stdout
+                else f"{result.stderr}\n\nstdout:\n{result.stdout}"
             )
+            return ToolOutcome.failure(invocation, error)
 
+        parsed: dict = json.loads(result.stdout)
         return ToolOutcome.success(
             invocation,
-            output=result.stdout,
+            PythonExecutionResult(result_type=parsed["__type__"], result=parsed["result"]),
         )
 
     @asynccontextmanager

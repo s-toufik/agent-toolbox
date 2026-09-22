@@ -34,8 +34,8 @@ class ToolBinder:
             server.add_tool(
                 self._handler(specification),
                 name=specification.name,
-                description=_description(specification),
-                structured_output=False,
+                description=specification.description,
+                structured_output=True,
             )
             bound.append(specification.name)
         return bound
@@ -43,7 +43,7 @@ class ToolBinder:
     def _handler(self, specification: ToolSpecification) -> Callable[..., Any]:
         use_case = self._use_case
 
-        async def handler(**arguments: Any) -> str:
+        async def handler(**arguments: Any) -> Any:
             outcome: ToolOutcome = await use_case.execute(
                 ToolInvocation(
                     id=_invocation_id(),
@@ -52,24 +52,20 @@ class ToolBinder:
                 )
             )
 
-            if outcome.failed and not outcome.output:
+            if outcome.failed:
                 raise ToolError(outcome.error or "Tool failed")
-            return outcome.content
+            return outcome.output
 
         handler.__name__ = specification.name
         handler.__doc__ = specification.description
-        handler.__signature__ = _signature(specification.parameters)  # ty: ignore[unresolved-attribute]
-        handler.__annotations__ = _annotations(specification.parameters)
+        handler.__signature__ = _signature(  # ty: ignore[unresolved-attribute]
+            specification.parameters, specification.output_type
+        )
+        handler.__annotations__ = _annotations(specification.parameters, specification.output_type)
         return handler
 
 
-def _description(specification: ToolSpecification) -> str:
-    if not specification.returns:
-        return specification.description
-    return f"{specification.description} Returns: {specification.returns}"
-
-
-def _signature(parameters: tuple[ToolParameter, ...]) -> inspect.Signature:
+def _signature(parameters: tuple[ToolParameter, ...], output_type: Any) -> inspect.Signature:
     return inspect.Signature(
         [
             inspect.Parameter(
@@ -80,12 +76,14 @@ def _signature(parameters: tuple[ToolParameter, ...]) -> inspect.Signature:
             )
             for parameter in parameters
         ],
-        return_annotation=str,
+        return_annotation=output_type,
     )
 
 
-def _annotations(parameters: tuple[ToolParameter, ...]) -> dict[str, Any]:
-    return {parameter.name: _annotation(parameter) for parameter in parameters} | {"return": str}
+def _annotations(parameters: tuple[ToolParameter, ...], output_type: Any) -> dict[str, Any]:
+    return {parameter.name: _annotation(parameter) for parameter in parameters} | {
+        "return": output_type
+    }
 
 
 def _annotation(parameter: ToolParameter) -> Any:

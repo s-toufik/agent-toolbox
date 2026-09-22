@@ -2,6 +2,7 @@ import asyncio
 import secrets
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 from pycraftcore.application_configuration.model.connector import DatabaseConnector
 from pycraftcore.file_handler.adapter import Handler
@@ -11,6 +12,7 @@ from pycraftcore.repository.adapter import SqliteRepositoryFactory, SqliteSettin
 from pycraftcore.repository.port import AsyncRepository, AsyncRepositoryFactory
 from pycraftcore.runtime.adapter import PythonSafeCodeFactory
 from pycraftcore.runtime.schema import SafeCodeSettings
+from pydantic import TypeAdapter
 
 from agent_toolbox.adapter.outbound.code.python_tool import PythonTool
 from agent_toolbox.adapter.outbound.code.tool_bridge import ToolBridgeServer
@@ -37,9 +39,30 @@ def _tool_signature(specification: ToolSpecification) -> str:
     ]
 
     signature = f"{specification.name}({', '.join(arguments)})"
-    if not specification.returns:
-        return signature
-    return f"{signature} -> {specification.returns}"
+    return f"{signature} -> {_shape(specification.output_type)}"
+
+
+def _shape(output_type: Any) -> str:
+    # Derived from the same pydantic schema MCP publishes, so this can't drift from it.
+    schema = TypeAdapter(output_type).json_schema()
+    definitions: dict[str, Any] = schema.get("$defs", {})
+
+    discriminator = schema.get("discriminator")
+    if discriminator is not None:
+        property_name: str = discriminator["propertyName"]
+        return " | ".join(
+            f"{property_name}={tag!r}: {_field_list(definitions[ref.rsplit('/', 1)[-1]])}"
+            for tag, ref in discriminator["mapping"].items()
+        )
+
+    if "properties" in schema:
+        return _field_list(schema)
+
+    return schema.get("type", str(output_type))
+
+
+def _field_list(schema: dict[str, Any]) -> str:
+    return "{" + ", ".join(schema["properties"]) + "}"
 
 
 def _tool_defaults(specification: ToolSpecification) -> dict[str, object]:

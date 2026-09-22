@@ -1,10 +1,10 @@
 import asyncio
 from typing import Any
 
-import orjson
 from pycraftcore.query_language.port import QueryFactory, QueryHandler
 from pycraftcore.repository.port import AsyncRepository
 
+from agent_toolbox.adapter.outbound.sql.model.sql_query_result import SqlQueryResult
 from agent_toolbox.domain.model.tool_invocation import ToolInvocation
 from agent_toolbox.domain.model.tool_outcome import ToolOutcome
 from agent_toolbox.domain.model.tool_specification import ToolSpecification
@@ -27,7 +27,7 @@ class SqlTool:
     def specification(self) -> ToolSpecification:
         return self._specification
 
-    async def invoke(self, invocation: ToolInvocation) -> ToolOutcome:
+    async def invoke(self, invocation: ToolInvocation) -> ToolOutcome[SqlQueryResult]:
         query: str = invocation.argument("query", "") or ""
         dialect: str = invocation.argument("dialect") or self._default_dialect
 
@@ -45,4 +45,4 @@ class SqlTool:
         except Exception as exception:
             return ToolOutcome.failure(invocation, f"SQL execution error: {exception}")
 
-        return ToolOutcome.success(invocation, orjson.dumps(rows, default=str).decode())
+        return ToolOutcome.success(invocation, SqlQueryResult(rows=rows))

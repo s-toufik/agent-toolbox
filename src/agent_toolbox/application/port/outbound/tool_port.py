@@ -6,16 +6,16 @@ from agent_toolbox.domain.model.tool_specification import ToolSpecification
 
 
 @runtime_checkable
-class ToolPort(Protocol):
+class ToolPort[T](Protocol):
     @property
     def specification(self) -> ToolSpecification: ...
 
-    async def invoke(self, invocation: ToolInvocation) -> ToolOutcome: ...
+    async def invoke(self, invocation: ToolInvocation) -> ToolOutcome[T]: ...
 
 
 @runtime_checkable
 class ToolRegistryPort(Protocol):
-    def get(self, name: str) -> ToolPort: ...
+    def get(self, name: str) -> ToolPort[object]: ...
 
     def specifications(self) -> list[ToolSpecification]: ...
 

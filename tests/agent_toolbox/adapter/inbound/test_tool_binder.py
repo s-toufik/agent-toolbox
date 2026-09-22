@@ -1,6 +1,7 @@
 import pytest
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
+from pydantic import BaseModel, Field
 
 from agent_toolbox.adapter.inbound.mcp.tool_binder import ToolBinder
 from agent_toolbox.adapter.outbound.registry.in_memory_tool_registry import InMemoryToolRegistry
@@ -9,6 +10,11 @@ from agent_toolbox.domain.enum.parameter_type import ParameterType
 from agent_toolbox.domain.model.tool_invocation import ToolInvocation
 from agent_toolbox.domain.model.tool_outcome import ToolOutcome
 from agent_toolbox.domain.model.tool_specification import ToolParameter, ToolSpecification
+
+
+class SqlRow(BaseModel):
+    rows: list[dict[str, int]] = Field(description="Rows returned by the query.")
+
 
 SPECIFICATION = ToolSpecification(
     name="run_sql",
@@ -27,6 +33,7 @@ SPECIFICATION = ToolSpecification(
             required=False,
         ),
     ),
+    output_type=SqlRow,
 )
 
 
@@ -40,7 +47,7 @@ class StubTool:
 
     async def invoke(self, invocation: ToolInvocation) -> ToolOutcome:
         self.seen.append(invocation)
-        return ToolOutcome.success(invocation, "[{'n': 1}]")
+        return ToolOutcome.success(invocation, SqlRow(rows=[{"n": 1}]))
 
 
 class FailingTool:
@@ -66,7 +73,7 @@ def server(tool: StubTool, logger) -> MCPServer:
     return server
 
 
-async def test_specification_drives_the_advertised_schema(server: MCPServer) -> None:
+async def test_specification_drives_the_advertised_input_schema(server: MCPServer) -> None:
     tools = {tool.name: tool for tool in await server.list_tools()}
 
     assert "run_sql" in tools
@@ -75,6 +82,21 @@ async def test_specification_drives_the_advertised_schema(server: MCPServer) -> 
     assert schema["properties"]["query"]["type"] == "string"
     assert schema["properties"]["query"]["description"] == "SQL query to execute."
     assert "dialect" in schema["properties"]
+
+
+async def test_output_type_drives_the_advertised_output_schema(server: MCPServer) -> None:
+    tools = {tool.name: tool for tool in await server.list_tools()}
+
+    output_schema = tools["run_sql"].output_schema
+    assert output_schema["properties"]["rows"]["description"] == "Rows returned by the query."
+
+
+async def test_a_successful_call_returns_structured_content_matching_the_output_type(
+    server: MCPServer,
+) -> None:
+    result = await server.call_tool("run_sql", {"query": "select 1"})
+
+    assert result.structured_content == {"rows": [{"n": 1}]}
 
 
 async def test_arguments_reach_the_tool(server: MCPServer, tool: StubTool) -> None:

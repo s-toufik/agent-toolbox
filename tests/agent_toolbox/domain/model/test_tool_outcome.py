@@ -9,21 +9,17 @@ def test_argument_returns_the_default_when_missing() -> None:
     assert INVOCATION.argument("a") == 1
 
 
-def test_success_outcome_content_is_just_the_output() -> None:
+def test_success_outcome_carries_the_typed_output_and_no_error() -> None:
     outcome = ToolOutcome.success(INVOCATION, "rows")
 
     assert outcome.failed is False
-    assert outcome.content == "rows"
+    assert outcome.output == "rows"
+    assert outcome.error is None
 
 
-def test_failure_with_no_output_shows_only_the_error() -> None:
+def test_failure_outcome_carries_the_error_and_no_output() -> None:
     outcome = ToolOutcome.failure(INVOCATION, "boom")
 
     assert outcome.failed is True
-    assert outcome.content == "Error: boom"
-
-
-def test_failure_with_partial_output_keeps_both() -> None:
-    outcome = ToolOutcome.failure(INVOCATION, "boom", output="partial")
-
-    assert outcome.content == "partial\nError: boom"
+    assert outcome.output is None
+    assert outcome.error == "boom"

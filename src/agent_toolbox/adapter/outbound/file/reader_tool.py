@@ -1,10 +1,16 @@
 import asyncio
 from typing import Any
 
-import orjson
 from pycraftcore.file_handler.enum.read_chunk_mode import ReadChunkMode
 from pycraftcore.file_handler.port import FileHandlerFactory, FileHandlerProvider
 
+from agent_toolbox.adapter.outbound.file.model.file_read_result import (
+    FileReadResult,
+    LinesFileResult,
+    RowsFileResult,
+    StructuredFileResult,
+    TextFileResult,
+)
 from agent_toolbox.domain.model.tool_invocation import ToolInvocation
 from agent_toolbox.domain.model.tool_outcome import ToolOutcome
 from agent_toolbox.domain.model.tool_specification import ToolSpecification
@@ -23,7 +29,7 @@ class FileReaderTool:
     def specification(self) -> ToolSpecification:
         return self._specification
 
-    async def invoke(self, invocation: ToolInvocation) -> ToolOutcome:
+    async def invoke(self, invocation: ToolInvocation) -> ToolOutcome[FileReadResult]:
         file_path: str = invocation.argument("file_path", "") or ""
 
         if not file_path.strip():
@@ -38,12 +44,24 @@ class FileReaderTool:
         executor: FileHandlerFactory = self._file_handler_factory(file_path=file_path)
 
         try:
-            result: dict[str, Any] = await asyncio.to_thread(
-                executor.read, read_chunk_mode, start, count
-            )
+            result: Any = await asyncio.to_thread(executor.read, read_chunk_mode, start, count)
         except FileNotFoundError:
             return ToolOutcome.failure(invocation, "File not found.")
         except Exception as exception:
             return ToolOutcome.failure(invocation, str(exception))
 
-        return ToolOutcome.success(invocation, orjson.dumps(result, default=str).decode())
+        return ToolOutcome.success(invocation, _to_result(file_path, read_chunk_mode, result))
+
+
+def _to_result(
+    file_path: str,
+    read_chunk_mode: ReadChunkMode | None,
+    result: Any,
+) -> FileReadResult:
+    if read_chunk_mode is ReadChunkMode.LINE:
+        return LinesFileResult(path=file_path, lines=result)
+    if isinstance(result, str):
+        return TextFileResult(path=file_path, text=result)
+    if isinstance(result, list):
+        return RowsFileResult(path=file_path, rows=result)
+    return StructuredFileResult(path=file_path, data=result)

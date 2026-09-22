@@ -1,9 +1,40 @@
 from pathlib import Path
 
+from agent_toolbox.adapter.outbound.file.model.file_read_result import FileReadResult
+from agent_toolbox.adapter.outbound.file.model.file_write_result import FileWriteResult
+from agent_toolbox.adapter.outbound.specification import file_reader, file_writer, user_database
 from bootstrap.configuration.settings import ProcessSettings
-from bootstrap.di.toolbox_di import ToolboxDI
+from bootstrap.di.toolbox_di import ToolboxDI, _shape, _tool_signature
 
 REAL_CONFIG_DIR = Path(__file__).resolve().parents[3] / "config"
+
+
+def test_shape_lists_the_fields_of_a_plain_model() -> None:
+    assert _shape(FileWriteResult) == "{path}"
+
+
+def test_shape_lists_each_variant_of_a_discriminated_union_by_its_tag() -> None:
+    shape = _shape(FileReadResult)
+
+    assert "format='text': {format, path, text}" in shape
+    assert "format='structured': {format, path, data}" in shape
+    assert "format='rows': {format, path, rows}" in shape
+    assert "format='lines': {format, path, lines}" in shape
+
+
+def test_tool_signature_shows_arguments_and_the_output_shape() -> None:
+    assert _tool_signature(file_writer.SPECIFICATION) == "file_writer(file_path, data) -> {path}"
+    assert (
+        _tool_signature(user_database.SPECIFICATION)
+        == "users_tables(query, dialect=None) -> {rows}"
+    )
+
+
+def test_tool_signature_shows_the_file_reader_shape_hint_before_any_code_runs() -> None:
+    signature = _tool_signature(file_reader.SPECIFICATION)
+
+    assert signature.startswith("file_reader(file_path, start=None, count=None) -> ")
+    assert "format='structured': {format, path, data}" in signature
 
 
 def make_di(tmp_path: Path) -> ToolboxDI:
