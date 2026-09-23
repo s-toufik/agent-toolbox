@@ -50,12 +50,7 @@ class PythonTool:
                 result: CodeStdout = await executor.execute()
 
         if result.stderr:
-            error = (
-                result.stderr
-                if not result.stdout
-                else f"{result.stderr}\n\nstdout:\n{result.stdout}"
-            )
-            return ToolOutcome.failure(invocation, error)
+            return ToolOutcome.failure(invocation, result.stderr)
 
         parsed: dict = json.loads(result.stdout)
         return ToolOutcome.success(

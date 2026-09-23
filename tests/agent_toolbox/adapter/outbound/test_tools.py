@@ -107,15 +107,14 @@ async def test_python_tool_returns_the_typed_result(semaphore) -> None:
     assert outcome.output.result == 42
 
 
-async def test_python_tool_folds_partial_stdout_into_the_error_on_failure(semaphore) -> None:
+async def test_python_tool_returns_only_the_error_ignoring_any_partial_stdout(semaphore) -> None:
     tool = PythonTool(code_factory(stdout="partial", stderr="boom"), SPEC, semaphore)
 
     outcome = await tool.invoke(ToolInvocation(id="1", name="tool", arguments={"code": "x=1"}))
 
     assert outcome.failed
     assert outcome.output is None
-    assert "partial" in (outcome.error or "")
-    assert "boom" in (outcome.error or "")
+    assert outcome.error == "boom"
 
 
 async def test_python_tool_rejects_empty_code(semaphore) -> None:

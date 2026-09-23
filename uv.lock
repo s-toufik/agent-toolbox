@@ -37,7 +37,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "mcp" },
-    { name = "pycraftcore", specifier = ">=1.3.0" },
+    { name = "pycraftcore", directory = "../pycraftcore" },
     { name = "pydantic", specifier = ">=2" },
     { name = "python-dotenv" },
     { name = "starlette" },
@@ -790,8 +790,8 @@ name = "httpcore2"
 version = "2.13.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "h11" },
-    { name = "truststore" },
+    { name = "h11", marker = "sys_platform != 'emscripten'" },
+    { name = "truststore", marker = "sys_platform != 'emscripten'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/15/8c/e925b1c92018abb3a1863ce1549d76d2381e334d21d65d4ac8f65dabd78a/httpcore2-2.13.0.tar.gz", hash = "sha256:2adc8be4fb285fbcd6d894298db3b52c177e74b6674eda3a76bd36be3292a3db", size = 67740, upload-time = "2026-09-14T14:18:04.717Z" }
 wheels = [
@@ -1834,8 +1834,8 @@ wheels = [
 
 [[package]]
 name = "pycraftcore"
-version = "1.3.0"
-source = { registry = "https://pypi.org/simple" }
+version = "1.4.0"
+source = { directory = "../pycraftcore" }
 dependencies = [
     { name = "aiobreaker" },
     { name = "aiohttp" },
@@ -1865,9 +1865,48 @@ dependencies = [
     { name = "starlette" },
     { name = "tenacity" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/cf/29/14a63a4d5b3c833962ab84520f6860cc45f2e665d7cc8e080afa7f638965/pycraftcore-1.3.0.tar.gz", hash = "sha256:94a80ad0d380c84e773cf9dc41c145879128dd9ca31613a57961004d1ccd8b8c", size = 44212, upload-time = "2026-09-22T09:42:35.175Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/b0/a5/440a250177bd34fa1a9510936ef685a878821943c45ef21f45c863c54bf4/pycraftcore-1.3.0-py3-none-any.whl", hash = "sha256:ea9437354f86629585becd144cb971aa00b0f301d0660c13f811246a063091e9", size = 90200, upload-time = "2026-09-22T09:42:34.124Z" },
+
+[package.metadata]
+requires-dist = [
+    { name = "aiobreaker" },
+    { name = "aiohttp" },
+    { name = "aiosqlite" },
+    { name = "asyncpg" },
+    { name = "httpx" },
+    { name = "loguru", specifier = ">=0.7.3" },
+    { name = "matplotlib" },
+    { name = "msgpack", specifier = ">=1.1.2" },
+    { name = "numpy" },
+    { name = "omegaconf" },
+    { name = "opentelemetry-api" },
+    { name = "opentelemetry-exporter-otlp" },
+    { name = "opentelemetry-instrumentation-logging", specifier = ">=0.65b0" },
+    { name = "opentelemetry-sdk" },
+    { name = "orjson" },
+    { name = "pandas" },
+    { name = "psycopg", extras = ["binary"] },
+    { name = "psycopg-pool" },
+    { name = "pydantic", specifier = ">=2" },
+    { name = "pyinstrument" },
+    { name = "pymongo", specifier = ">=4.9,<4.18" },
+    { name = "python-dotenv" },
+    { name = "pyyaml" },
+    { name = "scipy", specifier = ">=1.17.1" },
+    { name = "sqlglot" },
+    { name = "starlette" },
+    { name = "tenacity" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "hypothesis", specifier = ">=6.151.9" },
+    { name = "pre-commit" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "pytest-cov", specifier = ">=7.1.0" },
+    { name = "ruff" },
+    { name = "scipy-stubs", specifier = ">=1.17.1.3" },
+    { name = "ty" },
 ]
 
 [[package]]

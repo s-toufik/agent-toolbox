@@ -21,7 +21,7 @@ dependencies = [
     "uvicorn[standard]",
     "uvloop",
     "mcp",
-    "pycraftcore>=1.3.0",
+    "pycraftcore>=1.4.0",
     "pydantic>=2",
     "python-dotenv",
 ]
@@ -44,6 +44,12 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+# TEMPORARY: points at the local pycraftcore checkout so 1.4.0's simplified sandbox-error
+# messages are available before it's published to PyPI. Remove this table once
+# pycraftcore>=1.4.0 is on PyPI -- the version pin above is enough on its own at that point.
+[tool.uv.sources]
+pycraftcore = { path = "../pycraftcore" }
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
