@@ -8,13 +8,13 @@ REAL_CONFIG_DIR = Path(__file__).resolve().parents[3] / "config"
 TOOL_NAMES = {"users_tables", "python_executor", "file_reader", "file_writer"}
 
 
-def make_di(sandbox_tool_access: bool = False, vault_directory: Path | None = None) -> ToolboxDI:
+def make_di(sandbox_tool_access: bool = False, working_directory: Path | None = None) -> ToolboxDI:
     return ToolboxDI(
         ProcessSettings(
             role="toolbox",
             environment="debug",
             configuration_directory=REAL_CONFIG_DIR,
-            vault_directory=vault_directory,
+            working_directory=working_directory,
             sandbox_tool_access=sandbox_tool_access,
         )
     )
@@ -56,7 +56,7 @@ async def test_python_tool_lists_the_data_tools_with_sandbox_tool_access(
     tmp_path, monkeypatch
 ) -> None:
     _set_required_env(monkeypatch, tmp_path)
-    di = make_di(sandbox_tool_access=True, vault_directory=tmp_path)
+    di = make_di(sandbox_tool_access=True, working_directory=tmp_path)
 
     [python] = [
         tool for tool in (await di._invoke_tool_use_case()).tools if tool.name == "python_executor"
@@ -64,6 +64,6 @@ async def test_python_tool_lists_the_data_tools_with_sandbox_tool_access(
 
     assert "file_reader(*, file_path: str" in python.description
     assert "users_tables(*, query: str, dialect: str = 'sqlite') -> {rows:" in python.description
-    assert f"Vault location: {tmp_path}." in python.description
+    assert f"Working directory: {tmp_path}." in python.description
 
     await di._stop_factories()

@@ -10,7 +10,7 @@ from agent_toolbox.adapter.outbound.file.model.file_read_output import (
 )
 from agent_toolbox.adapter.outbound.file.reader_tool import ReadFile
 from agent_toolbox.domain.exception.tool_failure import ToolFailure
-from agent_toolbox.domain.model.vault import Vault
+from agent_toolbox.domain.model.working_directory import WorkingDirectory
 from tests.agent_toolbox.stubs import StubFileHandler, file_handler_provider
 
 
@@ -58,9 +58,9 @@ async def test_other_read_errors_keep_their_message() -> None:
         await _read(StubFileHandler(read_error=ValueError("unsupported extension")), file_path="/f")
 
 
-async def test_with_a_vault_relative_paths_resolve_inside_it(tmp_path) -> None:
+async def test_with_a_working_directory_relative_paths_resolve_inside_it(tmp_path) -> None:
     handler = StubFileHandler(read_result="x")
-    tool = ReadFile(file_handler_provider(handler), Vault(str(tmp_path)))
+    tool = ReadFile(file_handler_provider(handler), WorkingDirectory(str(tmp_path)))
 
     output = await tool.run(ReadFileInput(file_path="notes.md"))
 
@@ -68,11 +68,11 @@ async def test_with_a_vault_relative_paths_resolve_inside_it(tmp_path) -> None:
     assert str(tmp_path) in tool.description
 
 
-async def test_with_a_vault_paths_outside_it_are_refused(tmp_path) -> None:
+async def test_with_a_working_directory_paths_outside_it_are_refused(tmp_path) -> None:
     handler = StubFileHandler(read_result="x")
-    tool = ReadFile(file_handler_provider(handler), Vault(str(tmp_path)))
+    tool = ReadFile(file_handler_provider(handler), WorkingDirectory(str(tmp_path)))
 
-    with pytest.raises(ToolFailure, match="'/etc/hosts' is outside the vault."):
+    with pytest.raises(ToolFailure, match="'/etc/hosts' is outside the working directory."):
         await tool.run(ReadFileInput(file_path="/etc/hosts"))
 
     assert handler.read_with is None

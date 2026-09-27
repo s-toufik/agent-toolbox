@@ -19,7 +19,7 @@ from agent_toolbox.adapter.outbound.sandbox.python_sandbox import PythonSandbox
 from agent_toolbox.adapter.outbound.sql.sql_tool import QueryUsers
 from agent_toolbox.application.port.outbound.tool_port import Tool
 from agent_toolbox.application.use_case.invoke_tool_usecase import InvokeToolUseCase
-from agent_toolbox.domain.model.vault import Vault
+from agent_toolbox.domain.model.working_directory import WorkingDirectory
 from tests.agent_toolbox.stubs import StubRepository
 
 _SANDBOX_CALL = """
@@ -38,15 +38,19 @@ def files(tmp_path: Path) -> Path:
     return tmp_path
 
 
-def _server(logger, vault: Path | None = None) -> MCPServer:
-    toolbox_vault = Vault(str(vault)) if vault else None
+def _server(logger, working_directory: Path | None = None) -> MCPServer:
+    toolbox_working_directory = (
+        WorkingDirectory(str(working_directory)) if working_directory else None
+    )
     data_tools: list[Tool] = [
         QueryUsers(StubRepository(rows=[{"id": 1, "name": "ada"}]), SqlHandlerFactory()),
-        ReadFile(Handler, toolbox_vault),
-        WriteFile(Handler, toolbox_vault),
+        ReadFile(Handler, toolbox_working_directory),
+        WriteFile(Handler, toolbox_working_directory),
     ]
     bridge = SandboxToolBridge(InvokeToolUseCase(data_tools, logger))
-    settings = SafeCodeSettings(code_timeout=10, vault_path=str(vault) if vault else None)
+    settings = SafeCodeSettings(
+        code_timeout=10, working_directory=str(working_directory) if working_directory else None
+    )
     sandbox = PythonSandbox(PythonSafeCodeFactory(settings), asyncio.Semaphore(4), bridge.server)
     python = ExecutePython(sandbox, allowed_modules=(), timeout_seconds=10)
 
@@ -61,8 +65,8 @@ def server(logger) -> MCPServer:
 
 
 @pytest.fixture
-def vault_server(logger, files: Path) -> MCPServer:
-    return _server(logger, vault=files)
+def working_directory_server(logger, files: Path) -> MCPServer:
+    return _server(logger, working_directory=files)
 
 
 async def _direct(server: MCPServer, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
@@ -121,7 +125,7 @@ async def test_invalid_arguments_are_rejected_on_both_paths(server: MCPServer) -
     assert "file_path" in direct["error"] and "file_path" in sandboxed["error"]
 
 
-VAULT_CASES: list[tuple[str, str, dict[str, Any]]] = [
+WORKING_DIRECTORY_CASES: list[tuple[str, str, dict[str, Any]]] = [
     ("read relative", "file_reader", {"file_path": "data.json"}),
     ("read absolute inside", "file_reader", {"file_path": "{dir}/rows.csv"}),
     ("read outside", "file_reader", {"file_path": "../outside.md"}),
@@ -131,29 +135,35 @@ VAULT_CASES: list[tuple[str, str, dict[str, Any]]] = [
 
 
 @pytest.mark.parametrize(
-    ("case", "name", "arguments"), VAULT_CASES, ids=[case[0] for case in VAULT_CASES]
+    ("case", "name", "arguments"),
+    WORKING_DIRECTORY_CASES,
+    ids=[case[0] for case in WORKING_DIRECTORY_CASES],
 )
-async def test_with_a_vault_direct_and_sandboxed_calls_return_the_same_thing(
-    vault_server: MCPServer, files: Path, case: str, name: str, arguments: dict[str, Any]
+async def test_with_a_working_directory_direct_and_sandboxed_calls_return_the_same_thing(
+    working_directory_server: MCPServer,
+    files: Path,
+    case: str,
+    name: str,
+    arguments: dict[str, Any],
 ) -> None:
     arguments = {
         key: value.format(dir=files) if isinstance(value, str) else value
         for key, value in arguments.items()
     }
 
-    assert await _in_sandbox(vault_server, name, arguments) == await _direct(
-        vault_server, name, arguments
+    assert await _in_sandbox(working_directory_server, name, arguments) == await _direct(
+        working_directory_server, name, arguments
     )
 
 
-async def test_with_a_vault_a_relative_path_is_the_same_file_in_code_and_in_tools(
-    vault_server: MCPServer,
+async def test_with_a_working_directory_a_relative_path_is_the_same_file_in_code_and_in_tools(
+    working_directory_server: MCPServer,
 ) -> None:
     code = (
         'written = file_writer(file_path="shared.md", data="# Shared")\n'
         'result = {"path": written["path"], "text": open("shared.md").read()}\n'
     )
 
-    result = await vault_server.call_tool("python_executor", {"code": code})
+    result = await working_directory_server.call_tool("python_executor", {"code": code})
 
     assert result.structured_content["result"]["text"] == "# Shared"

@@ -4,7 +4,7 @@ from agent_toolbox.adapter.outbound.file.model.file_write_input import WriteFile
 from agent_toolbox.adapter.outbound.file.model.file_write_output import WriteFileOutput
 from agent_toolbox.adapter.outbound.file.writer_tool import WriteFile
 from agent_toolbox.domain.exception.tool_failure import ToolFailure
-from agent_toolbox.domain.model.vault import Vault
+from agent_toolbox.domain.model.working_directory import WorkingDirectory
 from tests.agent_toolbox.stubs import StubFileHandler, file_handler_provider
 
 
@@ -62,20 +62,20 @@ async def test_missing_directory_is_reported() -> None:
         await _write(handler, file_path="/missing/f.md", data="x")
 
 
-async def test_with_a_vault_relative_paths_resolve_inside_it(tmp_path) -> None:
+async def test_with_a_working_directory_relative_paths_resolve_inside_it(tmp_path) -> None:
     handler = StubFileHandler()
-    tool = WriteFile(file_handler_provider(handler), Vault(str(tmp_path)))
+    tool = WriteFile(file_handler_provider(handler), WorkingDirectory(str(tmp_path)))
 
     output = await tool.run(WriteFileInput(file_path="report.md", data="# R"))
 
     assert output == WriteFileOutput(path=str(tmp_path.resolve() / "report.md"))
 
 
-async def test_with_a_vault_paths_outside_it_are_never_written(tmp_path) -> None:
+async def test_with_a_working_directory_paths_outside_it_are_never_written(tmp_path) -> None:
     handler = StubFileHandler()
-    tool = WriteFile(file_handler_provider(handler), Vault(str(tmp_path)))
+    tool = WriteFile(file_handler_provider(handler), WorkingDirectory(str(tmp_path)))
 
-    with pytest.raises(ToolFailure, match="is outside the vault."):
+    with pytest.raises(ToolFailure, match="is outside the working directory."):
         await tool.run(WriteFileInput(file_path="../escaped.md", data="x"))
 
     assert handler.written is None

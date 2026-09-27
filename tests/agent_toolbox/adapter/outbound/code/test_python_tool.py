@@ -41,17 +41,19 @@ def test_description_lists_modules_and_timeout_only_by_default() -> None:
 
     assert "Allowed modules: json, math." in description
     assert "Hard timeout: 30 seconds." in description
-    assert "VAULT" not in description
+    assert "WORKING_DIRECTORY" not in description
     assert "ToolError" not in description
 
 
-def test_description_mentions_the_vault_and_callable_tools_when_configured() -> None:
+def test_description_mentions_the_working_directory_and_callable_tools_when_configured() -> None:
     description = _tool(
-        StubSandbox(), vault_path="/vault", tool_signatures=["echo(*, text: str) -> {echoed: str}"]
+        StubSandbox(),
+        working_directory="/work",
+        tool_signatures=["echo(*, text: str) -> {echoed: str}"],
     ).description
 
-    assert "Vault location: /vault." in description
+    assert "Working directory: /work." in description
     assert "echo(*, text: str) -> {echoed: str}" in description
     assert "raises ToolError" in description
     assert "Arguments must be plain JSON values" in description
-    assert "The file tools resolve relative paths against the vault too" in description
+    assert "The file tools resolve relative paths against the working directory too" in description

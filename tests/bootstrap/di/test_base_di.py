@@ -59,8 +59,7 @@ class RecordingRepository:
         raise AssertionError("not expected to be called")
 
 
-class NoLifecycleClient:
-    ...
+class NoLifecycleClient: ...
 
 
 def test_register_client_returns_the_same_object_and_tracks_it() -> None:
