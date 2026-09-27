@@ -1,12 +1,3 @@
-"""Keeps the toolbox's hexagon honest now that it's a standalone service.
-
-`agent_toolbox` is reached only over MCP by whatever agent (or other MCP
-client) is configured to use it -- it must never import an agent package
-directly, must stay free of langchain/langgraph (that's the agent's
-concern, not a tool server's), and its domain layer must stay
-framework-free.
-"""
-
 import ast
 from pathlib import Path
 
@@ -49,3 +40,8 @@ def test_domain_layer_stays_free_of_frameworks() -> None:
             elif isinstance(node, ast.ImportFrom) and node.module:
                 module = node.module.split(".", 1)[0]
             assert module not in forbidden, f"{path} imports {module}"
+
+
+def test_application_layer_does_not_import_transport_frameworks() -> None:
+    roots = _imported_roots("agent_toolbox/application")
+    assert not roots & {"mcp", "starlette", "fastapi", "uvicorn"}

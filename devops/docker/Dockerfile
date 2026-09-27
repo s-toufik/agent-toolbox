@@ -23,7 +23,7 @@ ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONPATH="/app/src" \
     CONFIGURATION_DIR="/app/config"
 
-RUN mkdir -p /data/sqlite /data/vault && chown -R app:app /data
+RUN mkdir -p /data/sqlite /data/working_directory && chown -R app:app /data
 
 USER app
 EXPOSE 8001

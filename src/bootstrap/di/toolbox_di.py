@@ -1,162 +1,74 @@
 import asyncio
-import secrets
-from collections.abc import Callable
 from pathlib import Path
-from typing import Any
 
 from pycraftcore.application_configuration.model.connector import DatabaseConnector
 from pycraftcore.file_handler.adapter import Handler
-from pycraftcore.http.context.request_context import request_id_context
 from pycraftcore.query_language.adapter import SqlHandlerFactory
 from pycraftcore.repository.adapter import SqliteRepositoryFactory, SqliteSettingsMapper
 from pycraftcore.repository.port import AsyncRepository, AsyncRepositoryFactory
 from pycraftcore.runtime.adapter import PythonSafeCodeFactory
+from pycraftcore.runtime.adapter.python.python_runner_template import PYTHON_ALLOWLIST
 from pycraftcore.runtime.schema import SafeCodeSettings
-from pydantic import TypeAdapter
 
-from agent_toolbox.adapter.outbound.code.python_tool import PythonTool
-from agent_toolbox.adapter.outbound.code.tool_bridge import ToolBridgeServer
-from agent_toolbox.adapter.outbound.file.reader_tool import FileReaderTool
-from agent_toolbox.adapter.outbound.file.writer_tool import FileWriterTool
-from agent_toolbox.adapter.outbound.registry.in_memory_tool_registry import InMemoryToolRegistry
-from agent_toolbox.adapter.outbound.specification import (
-    file_reader,
-    file_writer,
-    python_sandbox,
-    user_database,
-)
-from agent_toolbox.adapter.outbound.sql.sql_tool import SqlTool
-from agent_toolbox.application.port.outbound.tool_port import ToolPort, ToolRegistryPort
-from agent_toolbox.application.use_case.execute_tool_usecase import ExecuteToolUseCase
-from agent_toolbox.domain.model.tool_specification import ToolSpecification
+from agent_toolbox.adapter.inbound.sandbox.tool_bridge import SandboxToolBridge
+from agent_toolbox.adapter.inbound.tool_text import python_stub
+from agent_toolbox.adapter.outbound.code.python_tool import ExecutePython
+from agent_toolbox.adapter.outbound.file.reader_tool import ReadFile
+from agent_toolbox.adapter.outbound.file.writer_tool import WriteFile
+from agent_toolbox.adapter.outbound.sandbox.python_sandbox import PythonSandbox
+from agent_toolbox.adapter.outbound.sql.sql_tool import QueryUsers
+from agent_toolbox.application.port.outbound.tool_port import Tool
+from agent_toolbox.application.use_case.invoke_tool_usecase import InvokeToolUseCase
+from agent_toolbox.domain.model.vault import Vault
 from bootstrap.di.base_di import BaseDI
 
+USERS_CONNECTOR_NAME: str = "users"
 
-def _tool_signature(specification: ToolSpecification) -> str:
-    arguments: list[str] = [
-        parameter.name if parameter.required else f"{parameter.name}={parameter.default!r}"
-        for parameter in specification.parameters
-    ]
-
-    signature = f"{specification.name}({', '.join(arguments)})"
-    return f"{signature} -> {_shape(specification.output_type)}"
-
-
-def _shape(output_type: Any) -> str:
-    # Derived from the same pydantic schema MCP publishes, so this can't drift from it.
-    schema = TypeAdapter(output_type).json_schema()
-    definitions: dict[str, Any] = schema.get("$defs", {})
-
-    discriminator = schema.get("discriminator")
-    if discriminator is not None:
-        property_name: str = discriminator["propertyName"]
-        return " | ".join(
-            f"{property_name}={tag!r}: {_field_list(definitions[ref.rsplit('/', 1)[-1]])}"
-            for tag, ref in discriminator["mapping"].items()
-        )
-
-    if "properties" in schema:
-        return _field_list(schema)
-
-    return schema.get("type", str(output_type))
-
-
-def _field_list(schema: dict[str, Any]) -> str:
-    return "{" + ", ".join(schema["properties"]) + "}"
-
-
-def _tool_defaults(specification: ToolSpecification) -> dict[str, object]:
-    return {
-        parameter.name: parameter.default
-        for parameter in specification.parameters
-        if not parameter.required and parameter.default is not None
-    }
+SANDBOX_TIMEOUT_SECONDS: int = 18000
+SANDBOX_MAX_MEMORY_MB: int = 256
+SANDBOX_MAX_CONCURRENCY: int = 8
 
 
 class ToolboxDI(BaseDI):
-    async def _tools(self) -> list[ToolPort]:
-        data_tools: list[ToolPort] = [
-            await self._sql_tool(),
-            self._file_reader_tool(),
-            self._file_writer_tool(),
+    async def _invoke_tool_use_case(self) -> InvokeToolUseCase:
+        vault: Vault | None = self._vault()
+        data_tools: list[Tool] = [
+            QueryUsers(await self._sqlite_repository(USERS_CONNECTOR_NAME), SqlHandlerFactory()),
+            ReadFile(Handler, vault),
+            WriteFile(Handler, vault),
         ]
+        return InvokeToolUseCase([self._execute_python(data_tools), *data_tools], self._logging)
 
-        return [self._python_tool(data_tools), *data_tools]
-
-    async def _tool_registry(self) -> ToolRegistryPort:
-        return InMemoryToolRegistry(await self._tools())
-
-    def _execute_tool_use_case(self, registry: ToolRegistryPort) -> ExecuteToolUseCase:
-        return ExecuteToolUseCase(registry, self._logging)
-
-    # ------------------------------------------------------------------------------------------- sql
-    async def _sql_tool(self) -> SqlTool:
-        repository: AsyncRepository = await self._sqlite_repository(user_database.CONNECTOR_NAME)
-        return SqlTool(
-            repository=repository,
-            query_factory=SqlHandlerFactory(),
-            specification=user_database.SPECIFICATION,
-            default_dialect=user_database.DIALECT,
-        )
-
-    # ------------------------------------------------------------------------------------------- python
-    def _python_tool(self, data_tools: list[ToolPort]) -> PythonTool:
+    def _vault(self) -> Vault | None:
         vault_directory: Path | None = self._settings.vault_directory
-        vault_path: str | None = str(vault_directory) if vault_directory else None
+        return Vault(str(vault_directory)) if vault_directory else None
 
-        bridge_factory: Callable[[], ToolBridgeServer] | None = None
-        tool_functions: tuple[str, ...] = ()
+    def _execute_python(self, data_tools: list[Tool]) -> ExecutePython:
+        vault: Vault | None = self._vault()
+        vault_path: str | None = vault.root if vault else None
+
+        bridge: SandboxToolBridge | None = None
         if self._settings.sandbox_tool_access and data_tools:
-            bridge_factory = self._sandbox_bridge_factory(data_tools)
-            tool_functions = tuple(_tool_signature(tool.specification) for tool in data_tools)
+            bridge = SandboxToolBridge(InvokeToolUseCase(data_tools, self._logging))
 
         settings = SafeCodeSettings(
-            code_timeout=python_sandbox.TIMEOUT_SECONDS,
-            max_memory_mb=python_sandbox.MAX_MEMORY_MB,
+            code_timeout=SANDBOX_TIMEOUT_SECONDS,
+            max_memory_mb=SANDBOX_MAX_MEMORY_MB,
             vault_path=vault_path,
         )
-        return PythonTool(
+        sandbox = PythonSandbox(
             code_factory=PythonSafeCodeFactory(settings=settings),
-            specification=python_sandbox.specification(vault_path, tool_functions),
-            semaphore=asyncio.Semaphore(python_sandbox.MAX_CONCURRENCY),
-            bridge_server_factory=bridge_factory,
+            semaphore=asyncio.Semaphore(SANDBOX_MAX_CONCURRENCY),
+            bridge_server=bridge.server if bridge else None,
+        )
+        return ExecutePython(
+            sandbox,
+            allowed_modules=PYTHON_ALLOWLIST,
+            timeout_seconds=SANDBOX_TIMEOUT_SECONDS,
+            vault_path=vault_path,
+            tool_signatures=[python_stub(tool) for tool in data_tools] if bridge else (),
         )
 
-    def _sandbox_bridge_factory(self, data_tools: list[ToolPort]) -> Callable[[], ToolBridgeServer]:
-        use_case = ExecuteToolUseCase(InMemoryToolRegistry(data_tools), self._logging)
-        names: tuple[str, ...] = tuple(tool.specification.name for tool in data_tools)
-        defaults: dict[str, dict[str, object]] = {
-            tool.specification.name: _tool_defaults(tool.specification) for tool in data_tools
-        }
-
-        def factory() -> ToolBridgeServer:
-            return ToolBridgeServer(
-                use_case,
-                names,
-                secrets.token_hex(16),
-                tool_defaults=defaults,
-                context_id=request_id_context.get(),
-            )
-
-        return factory
-
-    # ------------------------------------------------------------------------------------------- file reader
-    @staticmethod
-    def _file_reader_tool() -> FileReaderTool:
-        return FileReaderTool(
-            file_handler_provider=Handler,
-            specification=file_reader.SPECIFICATION,
-        )
-
-    # ------------------------------------------------------------------------------------------- file writer
-    @staticmethod
-    def _file_writer_tool() -> FileWriterTool:
-        return FileWriterTool(
-            file_handler_provider=Handler,
-            specification=file_writer.SPECIFICATION,
-        )
-
-    # ------------------------------------------------------------------------------------------- resources
     async def _sqlite_repository(self, connector_name: str) -> AsyncRepository:
         connector: DatabaseConnector = self._configuration.connector.database(connector_name)
         factory: AsyncRepositoryFactory = SqliteRepositoryFactory(SqliteSettingsMapper(connector)())

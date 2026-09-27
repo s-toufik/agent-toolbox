@@ -69,9 +69,7 @@ class ToolboxContainer(ToolboxDI):
     async def boot(self, server: MCPServer | None = None) -> None:
         target = server or self.mcp_server
         _ = self._telemetry_provider
-        registry = await self._tool_registry()
-        binder = ToolBinder(self._execute_tool_use_case(registry), registry)
-        bound = binder.bind(target)
+        bound = ToolBinder(await self._invoke_tool_use_case()).bind(target)
         self.logging.info(f"Toolbox container booted, tools exposed: {', '.join(bound)}")
 
     async def stop(self) -> None:

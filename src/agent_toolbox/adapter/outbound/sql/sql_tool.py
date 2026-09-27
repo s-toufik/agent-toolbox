@@ -1,48 +1,43 @@
 import asyncio
 from typing import Any
 
+from pycraftcore.query_language.constants import FORBIDDEN_SQL_EXPRESSIONS
 from pycraftcore.query_language.port import QueryFactory, QueryHandler
 from pycraftcore.repository.port import AsyncRepository
 
-from agent_toolbox.adapter.outbound.sql.model.sql_query_result import SqlQueryResult
-from agent_toolbox.domain.model.tool_invocation import ToolInvocation
-from agent_toolbox.domain.model.tool_outcome import ToolOutcome
-from agent_toolbox.domain.model.tool_specification import ToolSpecification
+from agent_toolbox.adapter.outbound.sql.model.sql_query_input import QueryUsersInput
+from agent_toolbox.adapter.outbound.sql.model.sql_query_output import QueryUsersOutput
+from agent_toolbox.application.port.outbound.tool_port import Tool
+from agent_toolbox.domain.exception.tool_failure import ToolFailure
 
 
-class SqlTool:
-    def __init__(
-        self,
-        repository: AsyncRepository,
-        query_factory: QueryFactory,
-        specification: ToolSpecification,
-        default_dialect: str,
-    ) -> None:
+class QueryUsers(Tool[QueryUsersInput, QueryUsersOutput]):
+    name = "users_tables"
+    description = (
+        "Execute read-only SQL queries against the service database, which holds service "
+        "information such as the users dashboard and payment data. Forbidden operations: "
+        f"{', '.join(item.__name__ for item in FORBIDDEN_SQL_EXPRESSIONS)}."
+    )
+    input_model = QueryUsersInput
+    output_model = QueryUsersOutput
+
+    def __init__(self, repository: AsyncRepository, query_factory: QueryFactory) -> None:
         self._repository = repository
         self._query_factory = query_factory
-        self._specification = specification
-        self._default_dialect = default_dialect
 
-    @property
-    def specification(self) -> ToolSpecification:
-        return self._specification
-
-    async def invoke(self, invocation: ToolInvocation) -> ToolOutcome[SqlQueryResult]:
-        query: str = invocation.argument("query", "") or ""
-        dialect: str = invocation.argument("dialect") or self._default_dialect
-
-        if not query.strip():
-            return ToolOutcome.failure(invocation, "No SQL query provided.")
+    async def run(self, arguments: QueryUsersInput) -> QueryUsersOutput:
+        if not arguments.query.strip():
+            raise ToolFailure("No SQL query provided.")
 
         try:
-            handler: QueryHandler = self._query_factory(query, dialect=dialect)
+            handler: QueryHandler = self._query_factory(arguments.query, dialect=arguments.dialect)
             statement: str = await asyncio.to_thread(handler.transpile)
-        except Exception as exception:
-            return ToolOutcome.failure(invocation, f"SQL validation error ({dialect}): {exception}")
+        except Exception as error:
+            raise ToolFailure(f"SQL validation error ({arguments.dialect}): {error}") from error
 
         try:
             rows: list[dict[str, Any]] = await self._repository.execute(statement)
-        except Exception as exception:
-            return ToolOutcome.failure(invocation, f"SQL execution error: {exception}")
+        except Exception as error:
+            raise ToolFailure(f"SQL execution error: {error}") from error
 
-        return ToolOutcome.success(invocation, SqlQueryResult(rows=rows))
+        return QueryUsersOutput(rows=rows)

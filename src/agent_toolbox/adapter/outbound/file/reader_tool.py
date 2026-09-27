@@ -1,67 +1,70 @@
 import asyncio
+import sys
 from typing import Any
 
 from pycraftcore.file_handler.enum.read_chunk_mode import ReadChunkMode
 from pycraftcore.file_handler.port import FileHandlerFactory, FileHandlerProvider
 
-from agent_toolbox.adapter.outbound.file.model.file_read_result import (
-    FileReadResult,
-    LinesFileResult,
-    RowsFileResult,
-    StructuredFileResult,
-    TextFileResult,
+from agent_toolbox.adapter.outbound.file.model.file_read_input import ReadFileInput
+from agent_toolbox.adapter.outbound.file.model.file_read_output import (
+    LinesContent,
+    ReadFileOutput,
+    RowsContent,
+    StructuredContent,
+    TextContent,
 )
-from agent_toolbox.domain.model.tool_invocation import ToolInvocation
-from agent_toolbox.domain.model.tool_outcome import ToolOutcome
-from agent_toolbox.domain.model.tool_specification import ToolSpecification
+from agent_toolbox.application.port.outbound.tool_port import Tool
+from agent_toolbox.domain.exception.tool_failure import ToolFailure
+from agent_toolbox.domain.model.vault import Vault
 
 
-class FileReaderTool:
+class ReadFile(Tool[ReadFileInput, ReadFileOutput]):
+    name = "file_reader"
+    description = (
+        "Read a file and return its contents. Supported formats: yml, yaml, json, csv, md, txt. "
+        f"Current system: {sys.platform}."
+    )
+    input_model = ReadFileInput
+    output_model = ReadFileOutput
+
     def __init__(
-        self,
-        file_handler_provider: FileHandlerProvider,
-        specification: ToolSpecification,
+        self, file_handler_provider: FileHandlerProvider, vault: Vault | None = None
     ) -> None:
-        self._file_handler_factory = file_handler_provider
-        self._specification = specification
+        self._file_handler_provider = file_handler_provider
+        self._vault = vault
+        if vault is not None:
+            self.description = f"{self.description} Files are read from the vault: {vault.root}."
 
-    @property
-    def specification(self) -> ToolSpecification:
-        return self._specification
+    async def run(self, arguments: ReadFileInput) -> ReadFileOutput:
+        if not arguments.file_path.strip():
+            raise ToolFailure("No file_path provided.")
 
-    async def invoke(self, invocation: ToolInvocation) -> ToolOutcome[FileReadResult]:
-        file_path: str = invocation.argument("file_path", "") or ""
-
-        if not file_path.strip():
-            return ToolOutcome.failure(invocation, "No file_path provided.")
-
-        start: int | None = invocation.argument("start")
-        count: int | None = invocation.argument("count")
-        read_chunk_mode: ReadChunkMode | None = (
-            ReadChunkMode.LINE if start is not None or count is not None else None
-        )
-
-        executor: FileHandlerFactory = self._file_handler_factory(file_path=file_path)
+        path: str = self._vault.resolve(arguments.file_path) if self._vault else arguments.file_path
+        in_lines: bool = arguments.start is not None or arguments.count is not None
+        handler: FileHandlerFactory = self._file_handler_provider(file_path=path)
 
         try:
-            result: Any = await asyncio.to_thread(executor.read, read_chunk_mode, start, count)
-        except FileNotFoundError:
-            return ToolOutcome.failure(invocation, "File not found.")
-        except Exception as exception:
-            return ToolOutcome.failure(invocation, str(exception))
+            data: Any = await asyncio.to_thread(
+                handler.read,
+                ReadChunkMode.LINE if in_lines else None,
+                arguments.start,
+                arguments.count,
+            )
+        except FileNotFoundError as error:
+            raise ToolFailure("File not found.") from error
+        except Exception as error:
+            raise ToolFailure(str(error)) from error
 
-        return ToolOutcome.success(invocation, _to_result(file_path, read_chunk_mode, result))
+        return ReadFileOutput(path=path, content=_content(data, in_lines))
 
 
-def _to_result(
-    file_path: str,
-    read_chunk_mode: ReadChunkMode | None,
-    result: Any,
-) -> FileReadResult:
-    if read_chunk_mode is ReadChunkMode.LINE:
-        return LinesFileResult(path=file_path, lines=result)
-    if isinstance(result, str):
-        return TextFileResult(path=file_path, text=result)
-    if isinstance(result, list):
-        return RowsFileResult(path=file_path, rows=result)
-    return StructuredFileResult(path=file_path, data=result)
+def _content(
+    data: Any, in_lines: bool
+) -> TextContent | StructuredContent | RowsContent | LinesContent:
+    if in_lines:
+        return LinesContent(lines=data)
+    if isinstance(data, str):
+        return TextContent(text=data)
+    if isinstance(data, list) and all(isinstance(row, dict) for row in data):
+        return RowsContent(rows=data)
+    return StructuredContent(data=data)

@@ -1,49 +1,61 @@
 import asyncio
+import sys
+from pathlib import PurePath
 from typing import Any
 
 import orjson
 from pycraftcore.file_handler.port import FileHandlerFactory, FileHandlerProvider
 
-from agent_toolbox.adapter.outbound.file.model.file_write_result import FileWriteResult
-from agent_toolbox.domain.model.tool_invocation import ToolInvocation
-from agent_toolbox.domain.model.tool_outcome import ToolOutcome
-from agent_toolbox.domain.model.tool_specification import ToolSpecification
+from agent_toolbox.adapter.outbound.file.model.file_write_input import WriteFileInput
+from agent_toolbox.adapter.outbound.file.model.file_write_output import WriteFileOutput
+from agent_toolbox.application.port.outbound.tool_port import Tool
+from agent_toolbox.domain.exception.tool_failure import ToolFailure
+from agent_toolbox.domain.model.vault import Vault
+
+_TEXT_EXTENSIONS: frozenset[str] = frozenset({"md", "txt"})
 
 
-class FileWriterTool:
+class WriteFile(Tool[WriteFileInput, WriteFileOutput]):
+    name = "file_writer"
+    description = (
+        "Write data to a file, replacing its contents. Supported formats: yml, yaml, json, "
+        f"csv, md, txt. Current system: {sys.platform}."
+    )
+    input_model = WriteFileInput
+    output_model = WriteFileOutput
+
     def __init__(
-        self,
-        file_handler_provider: FileHandlerProvider,
-        specification: ToolSpecification,
+        self, file_handler_provider: FileHandlerProvider, vault: Vault | None = None
     ) -> None:
-        self._file_handler_factory = file_handler_provider
-        self._specification = specification
+        self._file_handler_provider = file_handler_provider
+        self._vault = vault
+        if vault is not None:
+            self.description = f"{self.description} Files are written to the vault: {vault.root}."
 
-    @property
-    def specification(self) -> ToolSpecification:
-        return self._specification
+    async def run(self, arguments: WriteFileInput) -> WriteFileOutput:
+        if not arguments.file_path.strip():
+            raise ToolFailure("No file_path provided.")
 
-    async def invoke(self, invocation: ToolInvocation) -> ToolOutcome[FileWriteResult]:
-        file_path: str = invocation.argument("file_path", "") or ""
-        raw_data: str = invocation.argument("data", "") or ""
-
-        if not file_path.strip():
-            return ToolOutcome.failure(invocation, "No file_path provided.")
-
-        try:
-            data: dict[str, Any] | list[dict[str, Any]] = (
-                orjson.loads(raw_data) if raw_data.strip() else {}
-            )
-        except orjson.JSONDecodeError as exception:
-            return ToolOutcome.failure(invocation, f"Invalid JSON in data: {exception}")
-
-        executor: FileHandlerFactory = self._file_handler_factory(file_path=file_path)
+        path: str = self._vault.resolve(arguments.file_path) if self._vault else arguments.file_path
+        data: Any = _decoded(path, arguments.data)
+        handler: FileHandlerFactory = self._file_handler_provider(file_path=path)
 
         try:
-            await asyncio.to_thread(executor.write, data)
-        except FileNotFoundError:
-            return ToolOutcome.failure(invocation, "File path not found.")
-        except Exception as exception:
-            return ToolOutcome.failure(invocation, str(exception))
+            await asyncio.to_thread(handler.write, data)
+        except FileNotFoundError as error:
+            raise ToolFailure("File path not found.") from error
+        except Exception as error:
+            raise ToolFailure(str(error)) from error
 
-        return ToolOutcome.success(invocation, FileWriteResult(path=file_path))
+        return WriteFileOutput(path=path)
+
+
+def _decoded(file_path: str, data: Any) -> Any:
+    # Structured formats also accept their data as a JSON string.
+    if not isinstance(data, str) or PurePath(file_path).suffix.lstrip(".") in _TEXT_EXTENSIONS:
+        return data
+
+    try:
+        return orjson.loads(data)
+    except orjson.JSONDecodeError as error:
+        raise ToolFailure(f"Invalid JSON in data: {error}") from error
