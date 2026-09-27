@@ -19,7 +19,7 @@ from agent_toolbox.adapter.outbound.sandbox.python_sandbox import PythonSandbox
 from agent_toolbox.adapter.outbound.sql.sql_tool import QueryUsers
 from agent_toolbox.application.port.outbound.tool_port import Tool
 from agent_toolbox.application.use_case.invoke_tool_usecase import InvokeToolUseCase
-from agent_toolbox.domain.model.vault import Vault
+from agent_toolbox.domain.model.working_directory import WorkingDirectory
 from bootstrap.di.base_di import BaseDI
 
 USERS_CONNECTOR_NAME: str = "users"
@@ -31,21 +31,21 @@ SANDBOX_MAX_CONCURRENCY: int = 8
 
 class ToolboxDI(BaseDI):
     async def _invoke_tool_use_case(self) -> InvokeToolUseCase:
-        vault: Vault | None = self._vault()
+        working_directory: WorkingDirectory | None = self._working_directory()
         data_tools: list[Tool] = [
             QueryUsers(await self._sqlite_repository(USERS_CONNECTOR_NAME), SqlHandlerFactory()),
-            ReadFile(Handler, vault),
-            WriteFile(Handler, vault),
+            ReadFile(Handler, working_directory),
+            WriteFile(Handler, working_directory),
         ]
         return InvokeToolUseCase([self._execute_python(data_tools), *data_tools], self._logging)
 
-    def _vault(self) -> Vault | None:
-        vault_directory: Path | None = self._settings.vault_directory
-        return Vault(str(vault_directory)) if vault_directory else None
+    def _working_directory(self) -> WorkingDirectory | None:
+        directory: Path | None = self._settings.working_directory
+        return WorkingDirectory(str(directory)) if directory else None
 
     def _execute_python(self, data_tools: list[Tool]) -> ExecutePython:
-        vault: Vault | None = self._vault()
-        vault_path: str | None = vault.root if vault else None
+        working_directory: WorkingDirectory | None = self._working_directory()
+        root: str | None = working_directory.root if working_directory else None
 
         bridge: SandboxToolBridge | None = None
         if self._settings.sandbox_tool_access and data_tools:
@@ -54,7 +54,7 @@ class ToolboxDI(BaseDI):
         settings = SafeCodeSettings(
             code_timeout=SANDBOX_TIMEOUT_SECONDS,
             max_memory_mb=SANDBOX_MAX_MEMORY_MB,
-            vault_path=vault_path,
+            working_directory=root,
         )
         sandbox = PythonSandbox(
             code_factory=PythonSafeCodeFactory(settings=settings),
@@ -65,7 +65,7 @@ class ToolboxDI(BaseDI):
             sandbox,
             allowed_modules=PYTHON_ALLOWLIST,
             timeout_seconds=SANDBOX_TIMEOUT_SECONDS,
-            vault_path=vault_path,
+            working_directory=root,
             tool_signatures=[python_stub(tool) for tool in data_tools] if bridge else (),
         )
 
