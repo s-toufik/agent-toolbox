@@ -19,19 +19,17 @@ class InvokeToolUseCase:
     def tools(self) -> tuple[Tool, ...]:
         return tuple(self._tools.values())
 
-    async def invoke(
-        self, name: str, arguments: Mapping[str, Any], invocation_id: str
-    ) -> dict[str, Any]:
-        self._logger.info(f"[{invocation_id}] tool '{name}' invoked")
+    async def invoke(self, name: str, arguments: Mapping[str, Any]) -> dict[str, Any]:
+        self._logger.info(f"tool '{name}' invoked")
 
         try:
             output: BaseModel = await self._run(name, arguments)
         except ToolFailure as failure:
-            self._logger.warning(f"[{invocation_id}] tool '{name}': {failure}")
+            self._logger.warning(f"tool '{name}': {failure}")
             raise
         except Exception as exception:
             traceback_str: str = "".join(traceback.format_exception(exception))
-            self._logger.error(f"[{invocation_id}] tool '{name}' raised:\n{traceback_str}")
+            self._logger.error(f"tool '{name}' raised:\n{traceback_str}")
             raise ToolFailure(f"Tool execution failed: {exception}") from exception
 
         return output.model_dump(mode="json")

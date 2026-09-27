@@ -37,7 +37,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "mcp" },
-    { name = "pycraftcore", specifier = ">=1.5.0" },
+    { name = "pycraftcore", specifier = ">=2.0.0" },
     { name = "pydantic", specifier = ">=2" },
     { name = "python-dotenv" },
     { name = "starlette" },
@@ -957,19 +957,6 @@ wheels = [
 ]
 
 [[package]]
-name = "loguru"
-version = "0.7.3"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "colorama", marker = "sys_platform == 'win32'" },
-    { name = "win32-setctime", marker = "sys_platform == 'win32'" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/3a/05/a1dae3dffd1116099471c643b8924f5aa6524411dc6c63fdae648c4f1aca/loguru-0.7.3.tar.gz", hash = "sha256:19480589e77d47b8d85b2c827ad95d49bf31b0dcde16593892eb51dd18706eb6", size = 63559, upload-time = "2024-12-06T11:20:56.608Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/0c/29/0348de65b8cc732daa3e33e67806420b2ae89bdce2b04af740289c5c6c8c/loguru-0.7.3-py3-none-any.whl", hash = "sha256:31a33c10c8e1e10422bfd431aeb5d351c7cf7fa671e3c4df004162264b28220c", size = 61595, upload-time = "2024-12-06T11:20:54.538Z" },
-]
-
-[[package]]
 name = "matplotlib"
 version = "3.11.2"
 source = { registry = "https://pypi.org/simple" }
@@ -1775,7 +1762,7 @@ wheels = [
 
 [[package]]
 name = "pycraftcore"
-version = "1.6.0"
+version = "2.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiobreaker" },
@@ -1783,7 +1770,6 @@ dependencies = [
     { name = "aiosqlite" },
     { name = "asyncpg" },
     { name = "httpx" },
-    { name = "loguru" },
     { name = "matplotlib" },
     { name = "msgpack" },
     { name = "numpy" },
@@ -1806,9 +1792,9 @@ dependencies = [
     { name = "starlette" },
     { name = "tenacity" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/dd/e5/323cb64acf056c5d22010a03a4a25f4fb0a1fbdd2d38080140aa4d282100/pycraftcore-1.6.0.tar.gz", hash = "sha256:133c43c5d550387453ab39252bed02f04d6c9272ef22bd49de224414cb9c1840", size = 46254, upload-time = "2026-09-27T07:24:40.101Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/7c/bd/34d3651d9b6d1a781469dee4693f1b652acd0206ae1b976aacd7bd09d6ed/pycraftcore-2.0.0.tar.gz", hash = "sha256:bf644d98fe26a12491743dfa551e06323c169866e2471feefd06f636fa170e86", size = 47920, upload-time = "2026-09-27T11:21:33.904Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/fa/63/89d0f9099fe782bb04c25b888d293e75fa6cb43d8f71915faff1a0abdf47/pycraftcore-1.6.0-py3-none-any.whl", hash = "sha256:fc8f6ff26967da68ba37c201f46bb025c80a184e67dc59465c02e6a803f718d0", size = 93118, upload-time = "2026-09-27T07:24:38.762Z" },
+    { url = "https://files.pythonhosted.org/packages/1b/39/354b07a9d2d54d9238b1be38ad051401cc93106d045176db8a846a676a49/pycraftcore-2.0.0-py3-none-any.whl", hash = "sha256:fcffe8bef735d2c42195bee1c889173d9fe90c20b1214033733feef4829c56d9", size = 94354, upload-time = "2026-09-27T11:21:32.912Z" },
 ]
 
 [[package]]
@@ -2563,15 +2549,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/2c/84/77599922ab441bfe61508f97dab2c71f8e114d31793993ea54011db16199/websockets-17.1-cp315-cp315t-win_amd64.whl", hash = "sha256:ad68c28a27246fed109a4409393d677b7e1388345cbbd2f5aee5c182d8506110", size = 217448, upload-time = "2026-08-26T14:58:21.382Z" },
     { url = "https://files.pythonhosted.org/packages/ce/3c/8b9a225b523f06a9389be81f1b0ab07c49bec6014742e6aa359c1f920f1f/websockets-17.1-cp315-cp315t-win_arm64.whl", hash = "sha256:e552e0037230ac16e5f568de7012041344d1b18c9feed30ec2891b8eba55af81", size = 217372, upload-time = "2026-08-26T14:58:22.807Z" },
     { url = "https://files.pythonhosted.org/packages/41/63/23572870e01836a98346075b9e17a8bc24a6ddd9800a3204ceee58677f3c/websockets-17.1-py3-none-any.whl", hash = "sha256:f221081107b8c48184d99f7019604486376e7ef826037e70aad6b02540732c23", size = 211134, upload-time = "2026-08-26T17:25:31.397Z" },
-]
-
-[[package]]
-name = "win32-setctime"
-version = "1.2.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/b3/8f/705086c9d734d3b663af0e9bb3d4de6578d08f46b1b101c2442fd9aecaa2/win32_setctime-1.2.0.tar.gz", hash = "sha256:ae1fdf948f5640aae05c511ade119313fb6a30d7eabe25fef9764dca5873c4c0", size = 4867, upload-time = "2024-12-07T15:28:28.314Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/e1/07/c6fe3ad3e685340704d314d765b7912993bcb8dc198f0e7a89382d37974b/win32_setctime-1.2.0-py3-none-any.whl", hash = "sha256:95d644c4e708aba81dc3704a116d8cbc974d70b3bdb8be1d150e36be6e9d1390", size = 4083, upload-time = "2024-12-07T15:28:26.465Z" },
 ]
 
 [[package]]

@@ -21,7 +21,7 @@ dependencies = [
     "uvicorn[standard]",
     "uvloop",
     "mcp",
-    "pycraftcore>=1.5.0",
+    "pycraftcore>=2.0.0",
     "pydantic>=2",
     "python-dotenv",
 ]
@@ -46,7 +46,7 @@ dev = [
 where = ["src"]
 
 #[tool.uv.sources]
-#pycraftcore = { path = "../pycraftcore" }
+#pycraftcore = { path = "../pycraftcore", editable = true }
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

@@ -37,7 +37,7 @@ async def test_use_case_serves_every_tool_and_connects_the_sqlite_repository(
 
     assert {tool.name for tool in use_case.tools} == TOOL_NAMES
     assert len(di._repositories) == 1
-    assert await use_case.invoke("python_executor", {"code": "result = 1 + 1"}, "1") == {
+    assert await use_case.invoke("python_executor", {"code": "result = 1 + 1"}) == {
         "result_type": "int",
         "result": 2,
         "stdout": "",

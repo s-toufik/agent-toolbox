@@ -1,11 +1,9 @@
 import inspect
-import uuid
 from collections.abc import Callable
 from typing import Annotated, Any
 
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
-from pycraftcore.http.context.request_context import request_id_context
 
 from agent_toolbox.adapter.inbound.tool_text import described
 from agent_toolbox.application.port.inbound.invoke_tool_port import InvokeToolPort
@@ -32,7 +30,7 @@ class ToolBinder:
 
         async def handler(**arguments: Any) -> Any:
             try:
-                return await invoker.invoke(tool.name, arguments, _invocation_id())
+                return await invoker.invoke(tool.name, arguments)
             except ToolFailure as failure:
                 raise ToolError(str(failure)) from failure
 
@@ -54,7 +52,3 @@ class ToolBinder:
         handler.__annotations__ = {parameter.name: parameter.annotation for parameter in parameters}
         handler.__annotations__["return"] = tool.output_model
         return handler
-
-
-def _invocation_id() -> str:
-    return request_id_context.get() or f"call_{uuid.uuid4().hex[:8]}"

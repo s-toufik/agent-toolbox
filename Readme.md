@@ -21,6 +21,7 @@ cp .env.example .env
 
 ```bash
 APP_ENV=debug
+LOG_LEVEL=INFO  # DEBUG, INFO, WARNING or ERROR
 USER_DB_HOST=/absolute/path/to/sqlite
 USER_DB_NAME=user
 TOOLBOX_URL=http://127.0.0.1:8001/mcp
@@ -66,21 +67,20 @@ host.
 
 ## Logging
 
-By default this service logs through **loguru**. To switch to Python's
-**standard `logging`** module instead:
+Standard Python `logging`, one format for every line (set up by pycraftcore's
+`configure_logging`):
 
-- Open `src/bootstrap/di/base_di.py`
-- Replace the `LoguruLogger` import with `StandardLogger`
-  (`from pycraftcore.logger.adapter import StandardLogger`)
-- In `_logging`, replace `LoguruLogger()` with `StandardLogger()`
-- In `_telemetry_provider`, remove the `self._logging.attach(log_handler)`
-  line -- `StandardLogger` already flows into the same pipeline the OTel
-  exporter is attached to at the root logger, so keeping that line would
-  ship every log line twice
-- Restart the service
+```
+2026-09-27 10:47:47.785 | INFO     | demo-logging-123 | invoke_tool_usecase:invoke:23 - tool 'file_reader' invoked
+```
 
-No config file or environment variable change is needed -- this is a
-one-line adapter swap in the composition root.
+- `LOG_LEVEL` sets the level (`INFO` by default).
+- The third column is the request id (the `X-Request-ID` header sent by the orchestrator); it
+  appears on every line of that request by itself, `-` outside one. Tool calls the sandbox makes
+  from `python_executor` code keep the id of the request that started it. Do not put it in log
+  messages.
+- With `OTEL_HOST`/`OTEL_PORT` set, the same lines also go to the OpenTelemetry collector
+  (Loki), with `request_id` as an attribute.
 
 ---
 

@@ -1,7 +1,6 @@
-import uuid
 from typing import Any
 
-from pycraftcore.http.context.request_context import request_id_context
+from pycraftcore.context.request_id_context import request_id_context
 from pycraftcore.runtime.adapter import HostBridgeServer
 
 from agent_toolbox.application.port.inbound.invoke_tool_port import InvokeToolPort
@@ -21,10 +20,14 @@ class SandboxToolBridge:
 
     def server(self) -> HostBridgeServer:
         invoker = self._invoker
-        invocation_id = f"sandbox_{request_id_context.get() or uuid.uuid4().hex[:8]}"
+        request_id = request_id_context.get()
 
         async def handle(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
-            return await invoker.invoke(name, arguments, invocation_id)
+            token = request_id_context.set(request_id)
+            try:
+                return await invoker.invoke(name, arguments)
+            finally:
+                request_id_context.reset(token)
 
         return HostBridgeServer(
             handle, self.tool_names, max_calls=self._max_calls, call_timeout=self._call_timeout
