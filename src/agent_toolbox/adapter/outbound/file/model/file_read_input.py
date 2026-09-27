@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field
 
 class ReadFileInput(BaseModel):
     file_path: str = Field(
-        description="File path, including extension. When a vault is configured, relative paths resolve inside it and paths outside it are refused."
+        description="File path, including extension. When a working directory is configured, relative paths resolve inside it and paths outside it are refused."
     )
     start: int | None = Field(
         default=None,

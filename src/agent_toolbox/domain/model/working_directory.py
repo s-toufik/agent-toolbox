@@ -5,7 +5,7 @@ from agent_toolbox.domain.exception.tool_failure import ToolFailure
 
 
 @dataclass(frozen=True, slots=True)
-class Vault:
+class WorkingDirectory:
     root: str
 
     def resolve(self, path: str) -> str:
@@ -16,6 +16,6 @@ class Vault:
         if os.path.commonpath((os.path.normcase(resolved), os.path.normcase(root))) != (
             os.path.normcase(root)
         ):
-            raise ToolFailure(f"Path {path!r} is outside the vault.")
+            raise ToolFailure(f"Path {path!r} is outside the working directory.")
 
         return resolved

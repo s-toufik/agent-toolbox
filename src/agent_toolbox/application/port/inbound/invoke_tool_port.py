@@ -11,5 +11,4 @@ class InvokeToolPort(Protocol):
 
     async def invoke(
         self, name: str, arguments: Mapping[str, Any], invocation_id: str
-    ) -> dict[str, Any]:
-        ...
+    ) -> dict[str, Any]: ...

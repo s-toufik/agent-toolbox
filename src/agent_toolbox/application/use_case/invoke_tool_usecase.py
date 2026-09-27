@@ -11,7 +11,6 @@ from agent_toolbox.domain.exception.unknown_tool_exception import UnknownToolExc
 
 
 class InvokeToolUseCase:
-
     def __init__(self, tools: Iterable[Tool], logger: Logger) -> None:
         self._tools: dict[str, Tool] = {tool.name: tool for tool in tools}
         self._logger = logger

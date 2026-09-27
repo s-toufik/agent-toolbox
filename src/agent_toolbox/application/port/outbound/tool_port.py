@@ -4,7 +4,6 @@ from pydantic import BaseModel
 
 
 class Tool[I: BaseModel, O: BaseModel](ABC):
-
     name: str
     description: str
     input_model: type[I]

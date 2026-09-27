@@ -18,12 +18,12 @@ class ExecutePython(Tool[ExecutePythonInput, ExecutePythonOutput]):
         sandbox: CodeSandboxPort,
         allowed_modules: Iterable[str],
         timeout_seconds: int,
-        vault_path: str | None = None,
+        working_directory: str | None = None,
         tool_signatures: Iterable[str] = (),
     ) -> None:
         self._sandbox = sandbox
         self.description = _description(
-            sorted(allowed_modules), timeout_seconds, vault_path, tuple(tool_signatures)
+            sorted(allowed_modules), timeout_seconds, working_directory, tuple(tool_signatures)
         )
 
     async def run(self, arguments: ExecutePythonInput) -> ExecutePythonOutput:
@@ -37,7 +37,7 @@ class ExecutePython(Tool[ExecutePythonInput, ExecutePythonOutput]):
 def _description(
     allowed_modules: list[str],
     timeout_seconds: int,
-    vault_path: str | None,
+    working_directory: str | None,
     tool_signatures: tuple[str, ...],
 ) -> str:
     text = (
@@ -48,15 +48,16 @@ def _description(
         f"Hard timeout: {timeout_seconds} seconds."
     )
 
-    if vault_path:
+    if working_directory:
         text += (
             " This tool is where heavy file analysis and generation belongs; the file_reader "
             "and file_writer tools are only for quick inspection and small writes. A shared "
-            "vault directory is mounted as your working directory and exposed to your code as "
-            "the 'VAULT' variable: read every input file from it and write every output there, "
-            "using relative paths or the VAULT variable. File access outside the vault is "
-            "denied. The file tools resolve relative paths against the vault too, so a path "
-            f"names the same file in your code and in a tool call. Vault location: {vault_path}."
+            "working directory is the current directory of your code and is exposed to it as "
+            "the 'WORKING_DIRECTORY' variable: read every input file from it and write every "
+            "output there, using relative paths or the WORKING_DIRECTORY variable. File access "
+            "outside the working directory is denied. The file tools resolve relative paths "
+            "against the working directory too, so a path names the same file in your code and "
+            f"in a tool call. Working directory: {working_directory}."
         )
 
     if tool_signatures:

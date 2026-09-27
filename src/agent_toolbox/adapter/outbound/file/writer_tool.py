@@ -10,7 +10,7 @@ from agent_toolbox.adapter.outbound.file.model.file_write_input import WriteFile
 from agent_toolbox.adapter.outbound.file.model.file_write_output import WriteFileOutput
 from agent_toolbox.application.port.outbound.tool_port import Tool
 from agent_toolbox.domain.exception.tool_failure import ToolFailure
-from agent_toolbox.domain.model.vault import Vault
+from agent_toolbox.domain.model.working_directory import WorkingDirectory
 
 _TEXT_EXTENSIONS: frozenset[str] = frozenset({"md", "txt"})
 
@@ -25,18 +25,27 @@ class WriteFile(Tool[WriteFileInput, WriteFileOutput]):
     output_model = WriteFileOutput
 
     def __init__(
-        self, file_handler_provider: FileHandlerProvider, vault: Vault | None = None
+        self,
+        file_handler_provider: FileHandlerProvider,
+        working_directory: WorkingDirectory | None = None,
     ) -> None:
         self._file_handler_provider = file_handler_provider
-        self._vault = vault
-        if vault is not None:
-            self.description = f"{self.description} Files are written to the vault: {vault.root}."
+        self._working_directory = working_directory
+        if working_directory is not None:
+            self.description = (
+                f"{self.description} Files are written to the working directory: "
+                f"{working_directory.root}."
+            )
 
     async def run(self, arguments: WriteFileInput) -> WriteFileOutput:
         if not arguments.file_path.strip():
             raise ToolFailure("No file_path provided.")
 
-        path: str = self._vault.resolve(arguments.file_path) if self._vault else arguments.file_path
+        path: str = (
+            self._working_directory.resolve(arguments.file_path)
+            if self._working_directory
+            else arguments.file_path
+        )
         data: Any = _decoded(path, arguments.data)
         handler: FileHandlerFactory = self._file_handler_provider(file_path=path)
 

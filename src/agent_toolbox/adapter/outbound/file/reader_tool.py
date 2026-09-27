@@ -15,7 +15,7 @@ from agent_toolbox.adapter.outbound.file.model.file_read_output import (
 )
 from agent_toolbox.application.port.outbound.tool_port import Tool
 from agent_toolbox.domain.exception.tool_failure import ToolFailure
-from agent_toolbox.domain.model.vault import Vault
+from agent_toolbox.domain.model.working_directory import WorkingDirectory
 
 
 class ReadFile(Tool[ReadFileInput, ReadFileOutput]):
@@ -28,18 +28,27 @@ class ReadFile(Tool[ReadFileInput, ReadFileOutput]):
     output_model = ReadFileOutput
 
     def __init__(
-        self, file_handler_provider: FileHandlerProvider, vault: Vault | None = None
+        self,
+        file_handler_provider: FileHandlerProvider,
+        working_directory: WorkingDirectory | None = None,
     ) -> None:
         self._file_handler_provider = file_handler_provider
-        self._vault = vault
-        if vault is not None:
-            self.description = f"{self.description} Files are read from the vault: {vault.root}."
+        self._working_directory = working_directory
+        if working_directory is not None:
+            self.description = (
+                f"{self.description} Files are read from the working directory: "
+                f"{working_directory.root}."
+            )
 
     async def run(self, arguments: ReadFileInput) -> ReadFileOutput:
         if not arguments.file_path.strip():
             raise ToolFailure("No file_path provided.")
 
-        path: str = self._vault.resolve(arguments.file_path) if self._vault else arguments.file_path
+        path: str = (
+            self._working_directory.resolve(arguments.file_path)
+            if self._working_directory
+            else arguments.file_path
+        )
         in_lines: bool = arguments.start is not None or arguments.count is not None
         handler: FileHandlerFactory = self._file_handler_provider(file_path=path)
 
