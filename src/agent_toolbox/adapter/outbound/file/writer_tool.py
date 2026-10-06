@@ -12,14 +12,14 @@ from agent_toolbox.application.port.outbound.tool_port import Tool
 from agent_toolbox.domain.exception.tool_failure import ToolFailure
 from agent_toolbox.domain.model.working_directory import WorkingDirectory
 
-_TEXT_EXTENSIONS: frozenset[str] = frozenset({"md", "txt"})
+_TEXT_EXTENSIONS: frozenset[str] = frozenset({"md", "txt", "svg"})
 
 
 class WriteFile(Tool[WriteFileInput, WriteFileOutput]):
     name = "file_writer"
     description = (
         "Write data to a file, replacing its contents. Supported formats: yml, yaml, json, "
-        f"csv, md, txt. Current system: {sys.platform}."
+        f"csv, md, txt, svg. Current system: {sys.platform}."
     )
     input_model = WriteFileInput
     output_model = WriteFileOutput

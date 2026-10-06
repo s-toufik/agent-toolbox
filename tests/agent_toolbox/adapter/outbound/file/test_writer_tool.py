@@ -18,6 +18,7 @@ async def _write(handler: StubFileHandler, **arguments) -> WriteFileOutput:
         ("/f.json", {"a": 1}),
         ("/f.csv", [{"a": 1}, {"a": 2}]),
         ("/f.md", "# Title"),
+        ("/f.svg", '<svg xmlns="http://www.w3.org/2000/svg"/>'),
     ],
 )
 async def test_data_is_written_as_given(file_path, data) -> None:

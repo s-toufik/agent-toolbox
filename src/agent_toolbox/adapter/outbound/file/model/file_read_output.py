@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 
 class TextContent(BaseModel):
     format: Literal["text"] = "text"
-    text: str = Field(description="Raw file contents (md, txt).")
+    text: str = Field(description="Raw file contents (md, txt, svg).")
 
 
 class StructuredContent(BaseModel):

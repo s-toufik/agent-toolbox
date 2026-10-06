@@ -21,7 +21,7 @@ from agent_toolbox.domain.model.working_directory import WorkingDirectory
 class ReadFile(Tool[ReadFileInput, ReadFileOutput]):
     name = "file_reader"
     description = (
-        "Read a file and return its contents. Supported formats: yml, yaml, json, csv, md, txt. "
+        "Read a file and return its contents. Supported formats: yml, yaml, json, csv, md, txt, svg. "
         f"Current system: {sys.platform}."
     )
     input_model = ReadFileInput
