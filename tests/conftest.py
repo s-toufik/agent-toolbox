@@ -42,6 +42,16 @@ def anyio_backend() -> Any:
     return "asyncio"
 
 
+@pytest.fixture(autouse=True)
+def _null_telemetry(monkeypatch):
+    # .env reaches the test process (ProcessSettings.for_role), so the real provider would
+    # export to the configured collector from background threads.
+    from bootstrap.di import base_di
+    from tests.support.null_telemetry import NullTelemetryProvider
+
+    monkeypatch.setattr(base_di, "OpenTelemetryProvider", NullTelemetryProvider)
+
+
 @pytest.fixture(autouse=True, scope="session")
 def _isolate_global_tracer_provider():
     import opentelemetry.trace as otel_trace

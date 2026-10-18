@@ -2,6 +2,7 @@ from pathlib import Path
 
 from bootstrap.configuration.settings import ProcessSettings
 from bootstrap.di.base_di import BaseDI
+from tests.support.null_telemetry import NullTelemetryProvider
 
 REAL_CONFIG_DIR = Path(__file__).resolve().parents[3] / "config"
 
@@ -118,10 +119,8 @@ def test_telemetry_provider_service_name_is_derived_from_the_role(monkeypatch) -
 
     provider = di._telemetry_provider
 
-    assert provider is not None
-    # Without an otlp_endpoint this spins up a BatchSpanProcessor with a real
-    # background thread -- shut it down or it leaks across the whole suite.
-    provider.shutdown()
+    assert isinstance(provider, NullTelemetryProvider)
+    assert provider.service_name == "toolbox-service"
 
 
 async def test_shutdown_telemetry_is_a_no_op_when_never_constructed() -> None:
@@ -133,9 +132,11 @@ async def test_shutdown_telemetry_is_a_no_op_when_never_constructed() -> None:
 async def test_shutdown_telemetry_shuts_down_and_evicts_the_cached_provider(monkeypatch) -> None:
     _set_required_env(monkeypatch)
     di = BaseDI(make_settings())
-    _ = di._telemetry_provider  # force construction
+    provider = di._telemetry_provider  # force construction
+    assert isinstance(provider, NullTelemetryProvider)
     assert "_telemetry_provider" in di.__dict__
 
     await di._shutdown_telemetry()
 
+    assert provider.is_shut_down
     assert "_telemetry_provider" not in di.__dict__

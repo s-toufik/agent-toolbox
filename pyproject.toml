@@ -11,9 +11,18 @@ authors = [
 description = "MCP tool server: sandboxed Python execution and read-only SQL, deployed independently of any one agent"
 readme = "Readme.md"
 requires-python = ">=3.14"
+keywords = ["mcp", "model-context-protocol", "llm", "agent", "tools", "sandbox", "python-execution", "sql", "asyncio"]
 classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Framework :: AsyncIO",
+    "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.14",
     "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Typing :: Typed",
+    "Private :: Do Not Upload",
 ]
 license = "MIT"
 dependencies = [
@@ -21,7 +30,8 @@ dependencies = [
     "uvicorn[standard]",
     "uvloop",
     "mcp",
-    "pycraftcore>=2.0.0",
+    "orjson",
+    "pycraftcore[application_configuration,authentication,context,file_handler,http,logger,query_language,repository,runtime-sandbox,telemetry]>=2.1.0",
     "pydantic>=2",
     "python-dotenv",
 ]
@@ -70,3 +80,5 @@ exclude = [".venv", "tests"]
 
 [project.urls]
 Homepage = "https://github.com/s-toufik/agent-toolbox"
+Repository = "https://github.com/s-toufik/agent-toolbox"
+Issues = "https://github.com/s-toufik/agent-toolbox/issues"

@@ -1,4 +1,4 @@
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from functools import cached_property
 
@@ -59,7 +59,7 @@ class ToolboxContainer(ToolboxDI):
         return build_mcp_asgi_app(self.mcp_server, connector)
 
     @asynccontextmanager
-    async def _lifespan(self, server: MCPServer) -> AsyncIterator[None]:
+    async def _lifespan(self, server: MCPServer) -> AsyncGenerator[None]:
         await self.boot(server)
         try:
             yield

@@ -1,5 +1,5 @@
 import asyncio
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager
 
 from pycraftcore.runtime import Code, CodeFactory
@@ -38,7 +38,7 @@ class PythonSandbox:
         return SandboxRun(type_name=result.type_name, value=result.value, printed=result.printed)
 
     @asynccontextmanager
-    async def _bridge(self) -> AsyncIterator[HostBridgeConfig | None]:
+    async def _bridge(self) -> AsyncGenerator[HostBridgeConfig | None]:
         if self._bridge_server is None:
             yield None
             return
