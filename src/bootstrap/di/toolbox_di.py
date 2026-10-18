@@ -1,7 +1,11 @@
 import asyncio
+from collections.abc import Mapping
+from functools import cached_property
 from pathlib import Path
 
-from pycraftcore.application_configuration.model.connector import DatabaseConnector
+from pycraftcore.application_configuration.enum import ConnectorType
+from pycraftcore.application_configuration.model.connector import DatabaseConnector, McpConnector
+from pycraftcore.application_configuration.model.operation import McpOperation
 from pycraftcore.file_handler.adapter import Handler
 from pycraftcore.query_language.adapter import SqlHandlerFactory
 from pycraftcore.repository.adapter import SqliteRepositoryFactory, SqliteSettingsMapper
@@ -15,12 +19,16 @@ from agent_toolbox.adapter.inbound.tool_text import python_stub
 from agent_toolbox.adapter.outbound.code.python_tool import ExecutePython
 from agent_toolbox.adapter.outbound.file.reader_tool import ReadFile
 from agent_toolbox.adapter.outbound.file.writer_tool import WriteFile
+from agent_toolbox.adapter.outbound.mcp.mcp_tool_provider import McpToolProvider
+from agent_toolbox.adapter.outbound.mcp.session_factory import McpSessionFactory
 from agent_toolbox.adapter.outbound.sandbox.python_sandbox import PythonSandbox
 from agent_toolbox.adapter.outbound.sql.sql_tool import QueryUsers
 from agent_toolbox.application.port.outbound.tool_port import Tool
 from agent_toolbox.application.use_case.invoke_tool_usecase import InvokeToolUseCase
 from agent_toolbox.domain.model.working_directory import WorkingDirectory
 from bootstrap.di.base_di import BaseDI
+
+EXTERNAL_MCP_PREFIX: str = "external_mcp_"
 
 USERS_CONNECTOR_NAME: str = "users"
 
@@ -37,7 +45,54 @@ class ToolboxDI(BaseDI):
             ReadFile(Handler, working_directory),
             WriteFile(Handler, working_directory),
         ]
-        return InvokeToolUseCase([self._execute_python(data_tools), *data_tools], self._logging)
+        data_tools.extend(await self._external_mcp_tools())
+        tools: list[Tool] = [self._execute_python(data_tools), *data_tools]
+        self._guard_unique_names(tools)
+        return InvokeToolUseCase(tools, self._logging)
+
+    @cached_property
+    def _external_mcp_connectors(self) -> dict[str, McpConnector]:
+        connectors: Mapping[str, McpConnector] = self._configuration.connector[ConnectorType.mcp]
+        return {
+            name: connector
+            for name, connector in connectors.items()
+            if name.startswith(EXTERNAL_MCP_PREFIX)
+        }
+
+    @cached_property
+    def _mcp_operation(self) -> dict[str, McpOperation]:
+        return {
+            operation.connector.name: operation
+            for operation in self._configuration.operation.by_name.values()
+            if isinstance(operation, McpOperation)
+        }
+
+    @staticmethod
+    def _guard_unique_names(tools: list[Tool]) -> None:
+        seen: set[str] = set()
+        for tool in tools:
+            if tool.name in seen:
+                raise ValueError(f"Duplicate tool name: '{tool.name}'")
+            seen.add(tool.name)
+
+    async def _external_mcp_tools(self) -> list[Tool]:
+        operations: dict[str, McpOperation] = self._mcp_operation
+        tools: list[Tool] = []
+        for name, connector in self._external_mcp_connectors.items():
+            factory = McpSessionFactory(connector, operations.get(connector.name))
+            try:
+                discovered: list[Tool] = await McpToolProvider(factory).tools()
+            except Exception as exception:
+                self._logging.warning(
+                    f"External MCP '{name}' unavailable, skipping it: {exception}"
+                )
+                continue
+            self._logging.info(
+                f"Discovered {len(discovered)} tools from '{name}': "
+                f"{', '.join(tool.name for tool in discovered)}"
+            )
+            tools.extend(discovered)
+        return tools
 
     def _working_directory(self) -> WorkingDirectory | None:
         directory: Path | None = self._settings.working_directory

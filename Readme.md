@@ -166,8 +166,7 @@ class CountRows(Tool[CountRowsInput, CountRowsOutput]):
     input_model = CountRowsInput
     output_model = CountRowsOutput
 
-    async def run(self, arguments: CountRowsInput) -> CountRowsOutput:
-        ...
+    async def run(self, arguments: CountRowsInput) -> CountRowsOutput: ...
 ```
 
 ### Tests and checks

@@ -64,10 +64,15 @@ def _description(
         text += (
             "\n\nInside your code these tools are available as functions. Call them with keyword "
             "arguments; each returns exactly what calling the tool directly returns, as plain "
-            "dicts and lists. A failing call raises ToolError with the tool's error message. "
-            "Arguments must be plain JSON values (dict, list, str, int, float, bool, None): "
-            "convert a DataFrame with json.loads(df.to_json(orient='records', "
-            "date_format='iso')) and a numpy number with .item().\n\n" + "\n".join(tool_signatures)
+            "dicts and lists. Results of tools called here stay in the sandbox and do not enter "
+            "the model context: only the value you assign to 'result' and what you print is "
+            "returned. Prefer calling tools here for large or heavy work: fetch and process the "
+            "data in the sandbox and return only a summary or a file path, rather than a direct "
+            "tool call that streams the whole result back through the context. A failing call "
+            "raises ToolError with the tool's error message. Arguments must be plain JSON values "
+            "(dict, list, str, int, float, bool, None): convert a DataFrame with "
+            "json.loads(df.to_json(orient='records', date_format='iso')) and a NumPy number with "
+            ".item().\n\n" + "\n".join(tool_signatures)
         )
 
     return text
