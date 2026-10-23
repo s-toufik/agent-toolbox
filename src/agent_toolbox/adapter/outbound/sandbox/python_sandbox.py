@@ -9,6 +9,9 @@ from pycraftcore.runtime.schema import CodeResult, CodeStdout, HostBridgeConfig
 from agent_toolbox.domain.exception.tool_failure import ToolFailure
 from agent_toolbox.domain.model.sandbox_run import SandboxRun
 
+NO_RESULT: str = "The sandbox returned no result."
+PRINTED_BEFORE_THE_ERROR: str = "Printed before the error:\n{printed}\n\n{error}"
+
 
 class PythonSandbox:
     def __init__(
@@ -28,12 +31,10 @@ class PythonSandbox:
             async with self._semaphore:
                 output: CodeStdout = await executor.execute()
 
-        # The runner prints its result envelope only when the code succeeded; anything
-        # else on stderr alongside it (warnings) doesn't make the run a failure.
         try:
             result: CodeResult = CodeResult.from_stdout(output.stdout)
         except ValueError, KeyError, TypeError:
-            raise ToolFailure(output.stderr or "The sandbox returned no result.") from None
+            raise ToolFailure(_failure_report(output)) from None
 
         return SandboxRun(type_name=result.type_name, value=result.value, printed=result.printed)
 
@@ -45,3 +46,10 @@ class PythonSandbox:
 
         async with self._bridge_server() as server:
             yield server.config
+
+
+def _failure_report(output: CodeStdout) -> str:
+    error: str = output.stderr or NO_RESULT
+    if not output.stdout:
+        return error
+    return PRINTED_BEFORE_THE_ERROR.format(printed=output.stdout, error=error)

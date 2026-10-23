@@ -50,7 +50,7 @@ The server is the reference for what it offers: an MCP client lists the tools (`
 | `users_tables` | Read-only SQL on the service database (users dashboard, payment data). Anything that writes or changes the schema is refused before it reaches the database | `query`, `dialect` (optional) |
 | `file_reader` | Returns a file's contents — parsed for `yml`, `yaml`, `json` and `csv`, as text for `md` and `txt` | `file_path`, optional `start` and `count` (a range of lines) |
 | `file_writer` | Writes (replaces) a file in one of the same formats | `file_path`, `data` |
-| `python_executor` | Runs Python for analysis or computation; the value of the variable `result` is returned, along with what the code printed | `code` |
+| `python_executor` | Runs Python for analysis or computation; the value of the variable `result` is returned, along with what the code printed. When the code fails, the error returns what it printed before failing and the traceback of its own lines (line numbers and source), so the model can fix it | `code` |
 
 A call with invalid arguments gets an error naming the bad fields. Every tool added later follows the same rules: published with its schema, callable directly and from the sandbox.
 
