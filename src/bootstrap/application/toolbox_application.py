@@ -8,6 +8,3 @@ def create_toolbox_application(settings: ProcessSettings | None = None) -> Starl
     process_settings = settings or ProcessSettings.for_role("toolbox")
     container = ToolboxContainer(process_settings)
     return container.asgi_app
-
-
-app: Starlette = create_toolbox_application()

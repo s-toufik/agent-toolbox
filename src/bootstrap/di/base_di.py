@@ -25,13 +25,14 @@ class BaseDI:
         self._telemetry_log_handler: logging.Handler | None = None
 
     @cached_property
-    def _logging(self) -> Logger:
-        configure_logging(self._settings.log_level)
-        return create_logger(StandardLogger())
+    def _configuration(self) -> ApplicationConfiguration:
+        configuration = SetApplicationConfiguration(self._settings)()
+        configure_logging(configuration.log)
+        return configuration
 
     @cached_property
-    def _configuration(self) -> ApplicationConfiguration:
-        return SetApplicationConfiguration(self._settings, self._logging)()
+    def _logging(self) -> Logger:
+        return create_logger(StandardLogger())
 
     @cached_property
     def _telemetry_provider(self) -> TelemetryProvider:

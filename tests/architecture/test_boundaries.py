@@ -44,4 +44,4 @@ def test_domain_layer_stays_free_of_frameworks() -> None:
 
 def test_application_layer_does_not_import_transport_frameworks() -> None:
     roots = _imported_roots("agent_toolbox/application")
-    assert not roots & {"mcp", "starlette", "fastapi", "uvicorn"}
+    assert not roots & {"mcp", "starlette", "fastapi", "uvicorn", "granian"}

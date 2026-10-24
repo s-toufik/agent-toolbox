@@ -27,11 +27,11 @@ classifiers = [
 license = "MIT"
 dependencies = [
     "starlette",
-    "uvicorn[standard]",
+    "granian",
     "uvloop",
     "mcp",
     "orjson",
-    "pycraftcore[application_configuration,authentication,context,file_handler,http,logger,query_language,repository,runtime-sandbox,telemetry]>=2.1.0",
+    "pycraftcore[application_configuration,authentication,context,file_handler,http,logger,query_language,repository,runtime-sandbox,telemetry]>=4.0.0",
     "pydantic>=2",
     "python-dotenv",
 ]
@@ -55,8 +55,8 @@ dev = [
 [tool.setuptools.packages.find]
 where = ["src"]
 
-#[tool.uv.sources]
-#pycraftcore = { path = "../pycraftcore", editable = true }
+[tool.uv.sources]
+pycraftcore = { path = "../pycraftcore", editable = true }
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

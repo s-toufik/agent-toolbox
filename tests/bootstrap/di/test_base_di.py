@@ -1,5 +1,8 @@
 from pathlib import Path
 
+from pycraftcore.logger.enum import LogLevel
+
+import bootstrap.di.base_di as base_di_module
 from bootstrap.configuration.settings import ProcessSettings
 from bootstrap.di.base_di import BaseDI
 from tests.support.null_telemetry import NullTelemetryProvider
@@ -111,6 +114,18 @@ def test_configuration_loads_the_real_tree(monkeypatch) -> None:
     di = BaseDI(make_settings())
 
     assert di._configuration.connector.mcp("self").transport == "streamable_http"
+
+
+def test_loading_the_configuration_applies_its_log_level_first(monkeypatch) -> None:
+    _set_required_env(monkeypatch)
+    monkeypatch.setenv("LOG_LEVEL", "WARNING")
+    applied: list[str] = []
+    monkeypatch.setattr(base_di_module, "configure_logging", applied.append)
+    di = BaseDI(make_settings())
+
+    _ = di._configuration
+
+    assert applied == [LogLevel.WARNING]
 
 
 def test_telemetry_provider_service_name_is_derived_from_the_role(monkeypatch) -> None:

@@ -97,10 +97,10 @@ npx @modelcontextprotocol/inspector
 | Variable | Meaning |
 |---|---|
 | `APP_ENV` | Which `config/<APP_ENV>/` folder is read (`debug` by default) |
-| `LOG_LEVEL` | `DEBUG`, `INFO`, `WARNING` or `ERROR` |
+| `LOG_LEVEL` | `DEBUG`, `INFO`, `WARNING`, `ERROR` or `CRITICAL`, in upper case; read by `root.yml` (`log`), `INFO` when unset |
 | `CONFIGURATION_DIR` | Where `config/` is (`./config` by default) |
 | `DEPLOYMENT_ENVIRONMENT` | Label shown by `/actuator/info` and on telemetry |
-| `TOOLBOX_URL` | The URL clients use, e.g. `http://<host>:<port>/mcp`. Sets the MCP path and the allowed host; the listening address comes from `uvicorn` |
+| `TOOLBOX_URL` | The URL clients use, e.g. `http://<host>:<port>/mcp`. Sets the MCP path and the allowed host; the listening address comes from Granian (`--host`/`--port`, or `GRANIAN_HOST`/`GRANIAN_PORT` in Docker) |
 | `TOOLBOX_EXTRA_ALLOWED_HOSTS` | Other `host:port` values clients may use, comma-separated |
 | `WORKING_DIRECTORY` | The folder file tools and the sandbox are confined to; unset = no working directory |
 | `SANDBOX_TOOL_ACCESS` | `true` to make the tools callable from `python_executor` code |
@@ -108,17 +108,17 @@ npx @modelcontextprotocol/inspector
 
 Tools that reach a backend add their own settings, read through a connector in `config/<APP_ENV>/connector/`. Today the SQL tool reads its SQLite database from `USER_DB_HOST` (folder) and `USER_DB_NAME` (file). `.env.example` is the reference for the full list.
 
-Configuration files are in `config/`: `root.yml` lists what exists, and `config/<APP_ENV>/connector/` defines the MCP server itself, telemetry, and each backend a tool uses.
+Configuration files are in `config/`: `root.yml` sets the log level and lists what exists, and `config/<APP_ENV>/connector/` defines the MCP server itself, telemetry, and each backend a tool uses. `root.yml` keeps `server: {}`: the MCP endpoint is not one of the web servers `server/*.yml` describes.
 
 ### Logs
 
-One format for every line; the third column is the request id sent by the client in `X-Request-ID`. Tool calls made from sandboxed code keep the id of the request that started them.
+One format for every line the service writes; the third column is the request id sent by the client in `X-Request-ID`. Tool calls made from sandboxed code keep the id of the request that started them.
 
 ```text
 2026-09-27 10:47:47.785 | INFO     | my-conversation | invoke_tool_usecase:invoke:23 - tool 'file_reader' invoked
 ```
 
-With `OTEL_HOST` set, the same lines also go to the OpenTelemetry collector.
+With `OTEL_HOST` set, the same lines also go to the OpenTelemetry collector. Granian's own start and stop lines (`[INFO] Starting granian…`) keep Granian's format; access-log lines carry no request id.
 
 ---
 
@@ -186,3 +186,5 @@ uv run pre-commit install --hook-type pre-commit --hook-type pre-push
 ### Deploying
 
 `make docker_build` builds `agent-toolbox:local`. It listens on port 8001; set the environment variables above on the container, with `TOOLBOX_URL` matching the address clients use.
+
+The image is served by [Granian](https://github.com/emmett-framework/granian), configured with `GRANIAN_*` variables in the Dockerfile (ASGI interface, factory, host, port, access log). Set any other Granian option the same way in your deployment, without rebuilding: for example `GRANIAN_WORKERS=2` for two worker processes (each one builds its own server and tools), or `GRANIAN_WORKERS_MAX_RSS=1024` to restart a worker that grows above 1 GiB — useful here, since `python_executor` runs user code.
