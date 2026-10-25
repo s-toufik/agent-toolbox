@@ -4,7 +4,7 @@ from urllib.parse import urlparse
 from mcp.server.mcpserver import MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
 from pycraftcore.application_configuration.model.connector import McpConnector
-from pycraftcore.http.middleware import RequestIDMiddleware
+from pycraftcore.web.middleware import RequestIDMiddleware
 from starlette.applications import Starlette
 from starlette.middleware.gzip import GZipMiddleware
 
