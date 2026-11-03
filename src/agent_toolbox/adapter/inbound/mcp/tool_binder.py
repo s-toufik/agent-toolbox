@@ -1,97 +1,54 @@
 import inspect
-import uuid
 from collections.abc import Callable
 from typing import Annotated, Any
 
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
-from pycraftcore.http.context.request_context import request_id_context
-from pydantic import Field
 
-from agent_toolbox.application.port.outbound.tool_port import ToolRegistryPort
-from agent_toolbox.application.use_case.execute_tool_usecase import ExecuteToolUseCase
-from agent_toolbox.domain.enum.parameter_type import ParameterType
-from agent_toolbox.domain.model.tool_invocation import ToolInvocation
-from agent_toolbox.domain.model.tool_outcome import ToolOutcome
-from agent_toolbox.domain.model.tool_specification import ToolParameter, ToolSpecification
-
-_PYTHON_TYPE: dict[ParameterType, type] = {
-    ParameterType.STRING: str,
-    ParameterType.INTEGER: int,
-    ParameterType.NUMBER: float,
-    ParameterType.BOOLEAN: bool,
-}
+from agent_toolbox.adapter.inbound.tool_text import described
+from agent_toolbox.application.port.inbound.invoke_tool_port import InvokeToolPort
+from agent_toolbox.application.port.outbound.tool_port import Tool
+from agent_toolbox.domain.exception.tool_failure import ToolFailure
 
 
 class ToolBinder:
-    def __init__(self, use_case: ExecuteToolUseCase, registry: ToolRegistryPort) -> None:
-        self._use_case = use_case
-        self._registry = registry
+    def __init__(self, invoker: InvokeToolPort) -> None:
+        self._invoker = invoker
 
     def bind(self, server: MCPServer) -> list[str]:
-        bound: list[str] = []
-        for specification in self._registry.specifications():
+        for tool in self._invoker.tools:
             server.add_tool(
-                self._handler(specification),
-                name=specification.name,
-                description=_description(specification),
-                structured_output=False,
+                self._handler(tool),
+                name=tool.name,
+                description=described(tool),
+                structured_output=True,
             )
-            bound.append(specification.name)
-        return bound
+        return [tool.name for tool in self._invoker.tools]
 
-    def _handler(self, specification: ToolSpecification) -> Callable[..., Any]:
-        use_case = self._use_case
+    def _handler(self, tool: Tool) -> Callable[..., Any]:
+        invoker = self._invoker
 
-        async def handler(**arguments: Any) -> str:
-            outcome: ToolOutcome = await use_case.execute(
-                ToolInvocation(
-                    id=_invocation_id(),
-                    name=specification.name,
-                    arguments={key: value for key, value in arguments.items() if value is not None},
-                )
-            )
+        async def handler(**arguments: Any) -> Any:
+            try:
+                return await invoker.invoke(tool.name, arguments)
+            except ToolFailure as failure:
+                raise ToolError(str(failure)) from failure
 
-            if outcome.failed and not outcome.output:
-                raise ToolError(outcome.error or "Tool failed")
-            return outcome.content
-
-        handler.__name__ = specification.name
-        handler.__doc__ = specification.description
-        handler.__signature__ = _signature(specification.parameters)  # ty: ignore[unresolved-attribute]
-        handler.__annotations__ = _annotations(specification.parameters)
-        return handler
-
-
-def _description(specification: ToolSpecification) -> str:
-    if not specification.returns:
-        return specification.description
-    return f"{specification.description} Returns: {specification.returns}"
-
-
-def _signature(parameters: tuple[ToolParameter, ...]) -> inspect.Signature:
-    return inspect.Signature(
-        [
+        # MCP builds the input schema from the signature and the output schema from the
+        # return annotation, so both come from the tool's own models.
+        parameters: list[inspect.Parameter] = [
             inspect.Parameter(
-                parameter.name,
+                name,
                 inspect.Parameter.KEYWORD_ONLY,
-                annotation=_annotation(parameter),
-                default=inspect.Parameter.empty if parameter.required else parameter.default,
+                annotation=Annotated[field.annotation, field],
+                default=inspect.Parameter.empty if field.is_required() else field.default,
             )
-            for parameter in parameters
-        ],
-        return_annotation=str,
-    )
-
-
-def _annotations(parameters: tuple[ToolParameter, ...]) -> dict[str, Any]:
-    return {parameter.name: _annotation(parameter) for parameter in parameters} | {"return": str}
-
-
-def _annotation(parameter: ToolParameter) -> Any:
-    python_type = _PYTHON_TYPE[parameter.type]
-    return Annotated[python_type, Field(description=parameter.description)]  # ty: ignore[invalid-type-form]
-
-
-def _invocation_id() -> str:
-    return request_id_context.get() or f"call_{uuid.uuid4().hex[:8]}"
+            for name, field in tool.input_model.model_fields.items()
+        ]
+        handler.__name__ = tool.name
+        handler.__signature__ = inspect.Signature(  # ty: ignore[unresolved-attribute]
+            parameters, return_annotation=tool.output_model
+        )
+        handler.__annotations__ = {parameter.name: parameter.annotation for parameter in parameters}
+        handler.__annotations__["return"] = tool.output_model
+        return handler

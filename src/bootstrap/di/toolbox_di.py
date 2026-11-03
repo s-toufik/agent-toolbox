@@ -1,139 +1,129 @@
 import asyncio
-import secrets
-from collections.abc import Callable
+from collections.abc import Mapping
+from functools import cached_property
 from pathlib import Path
 
-from pycraftcore.application_configuration.model.connector import DatabaseConnector
+from pycraftcore.application_configuration.enum import ConnectorType
+from pycraftcore.application_configuration.model.connector import DatabaseConnector, McpConnector
+from pycraftcore.application_configuration.model.operation import McpOperation
 from pycraftcore.file_handler.adapter import Handler
-from pycraftcore.http.context.request_context import request_id_context
 from pycraftcore.query_language.adapter import SqlHandlerFactory
 from pycraftcore.repository.adapter import SqliteRepositoryFactory, SqliteSettingsMapper
 from pycraftcore.repository.port import AsyncRepository, AsyncRepositoryFactory
 from pycraftcore.runtime.adapter import PythonSafeCodeFactory
+from pycraftcore.runtime.adapter.python.python_runner_template import PYTHON_ALLOWLIST
 from pycraftcore.runtime.schema import SafeCodeSettings
 
-from agent_toolbox.adapter.outbound.code.python_tool import PythonTool
-from agent_toolbox.adapter.outbound.code.tool_bridge import ToolBridgeServer
-from agent_toolbox.adapter.outbound.file.reader_tool import FileReaderTool
-from agent_toolbox.adapter.outbound.file.writer_tool import FileWriterTool
-from agent_toolbox.adapter.outbound.registry.in_memory_tool_registry import InMemoryToolRegistry
-from agent_toolbox.adapter.outbound.specification import (
-    file_reader,
-    file_writer,
-    python_sandbox,
-    user_database,
-)
-from agent_toolbox.adapter.outbound.sql.sql_tool import SqlTool
-from agent_toolbox.application.port.outbound.tool_port import ToolPort, ToolRegistryPort
-from agent_toolbox.application.use_case.execute_tool_usecase import ExecuteToolUseCase
-from agent_toolbox.domain.model.tool_specification import ToolSpecification
+from agent_toolbox.adapter.inbound.sandbox.tool_bridge import SandboxToolBridge
+from agent_toolbox.adapter.inbound.tool_text import python_stub
+from agent_toolbox.adapter.outbound.code.python_tool import ExecutePython
+from agent_toolbox.adapter.outbound.file.reader_tool import ReadFile
+from agent_toolbox.adapter.outbound.file.writer_tool import WriteFile
+from agent_toolbox.adapter.outbound.mcp.mcp_tool_provider import McpToolProvider
+from agent_toolbox.adapter.outbound.mcp.session_factory import McpSessionFactory
+from agent_toolbox.adapter.outbound.sandbox.python_sandbox import PythonSandbox
+from agent_toolbox.adapter.outbound.sql.sql_tool import QueryUsers
+from agent_toolbox.application.port.outbound.tool_port import Tool
+from agent_toolbox.application.use_case.invoke_tool_usecase import InvokeToolUseCase
+from agent_toolbox.domain.model.working_directory import WorkingDirectory
 from bootstrap.di.base_di import BaseDI
 
+EXTERNAL_MCP_PREFIX: str = "external_mcp_"
 
-def _tool_signature(specification: ToolSpecification) -> str:
-    arguments: list[str] = [
-        parameter.name if parameter.required else f"{parameter.name}={parameter.default!r}"
-        for parameter in specification.parameters
-    ]
+USERS_CONNECTOR_NAME: str = "users"
 
-    signature = f"{specification.name}({', '.join(arguments)})"
-    if not specification.returns:
-        return signature
-    return f"{signature} -> {specification.returns}"
-
-
-def _tool_defaults(specification: ToolSpecification) -> dict[str, object]:
-    return {
-        parameter.name: parameter.default
-        for parameter in specification.parameters
-        if not parameter.required and parameter.default is not None
-    }
+SANDBOX_TIMEOUT_SECONDS: int = 18000
+SANDBOX_MAX_MEMORY_MB: int = 256
+SANDBOX_MAX_CONCURRENCY: int = 8
 
 
 class ToolboxDI(BaseDI):
-    async def _tools(self) -> list[ToolPort]:
-        data_tools: list[ToolPort] = [
-            await self._sql_tool(),
-            self._file_reader_tool(),
-            self._file_writer_tool(),
+    async def _invoke_tool_use_case(self) -> InvokeToolUseCase:
+        working_directory: WorkingDirectory | None = self._working_directory()
+        data_tools: list[Tool] = [
+            QueryUsers(await self._sqlite_repository(USERS_CONNECTOR_NAME), SqlHandlerFactory()),
+            ReadFile(Handler, working_directory),
+            WriteFile(Handler, working_directory),
         ]
+        data_tools.extend(await self._external_mcp_tools())
+        tools: list[Tool] = [self._execute_python(data_tools), *data_tools]
+        self._guard_unique_names(tools)
+        return InvokeToolUseCase(tools, self._logging)
 
-        return [self._python_tool(data_tools), *data_tools]
-
-    async def _tool_registry(self) -> ToolRegistryPort:
-        return InMemoryToolRegistry(await self._tools())
-
-    def _execute_tool_use_case(self, registry: ToolRegistryPort) -> ExecuteToolUseCase:
-        return ExecuteToolUseCase(registry, self._logging)
-
-    # ------------------------------------------------------------------------------------------- sql
-    async def _sql_tool(self) -> SqlTool:
-        repository: AsyncRepository = await self._sqlite_repository(user_database.CONNECTOR_NAME)
-        return SqlTool(
-            repository=repository,
-            query_factory=SqlHandlerFactory(),
-            specification=user_database.SPECIFICATION,
-            default_dialect=user_database.DIALECT,
-        )
-
-    # ------------------------------------------------------------------------------------------- python
-    def _python_tool(self, data_tools: list[ToolPort]) -> PythonTool:
-        vault_directory: Path | None = self._settings.vault_directory
-        vault_path: str | None = str(vault_directory) if vault_directory else None
-
-        bridge_factory: Callable[[], ToolBridgeServer] | None = None
-        tool_functions: tuple[str, ...] = ()
-        if self._settings.sandbox_tool_access and data_tools:
-            bridge_factory = self._sandbox_bridge_factory(data_tools)
-            tool_functions = tuple(_tool_signature(tool.specification) for tool in data_tools)
-
-        settings = SafeCodeSettings(
-            code_timeout=python_sandbox.TIMEOUT_SECONDS,
-            max_memory_mb=python_sandbox.MAX_MEMORY_MB,
-            vault_path=vault_path,
-        )
-        return PythonTool(
-            code_factory=PythonSafeCodeFactory(settings=settings),
-            specification=python_sandbox.specification(vault_path, tool_functions),
-            semaphore=asyncio.Semaphore(python_sandbox.MAX_CONCURRENCY),
-            bridge_server_factory=bridge_factory,
-        )
-
-    def _sandbox_bridge_factory(self, data_tools: list[ToolPort]) -> Callable[[], ToolBridgeServer]:
-        use_case = ExecuteToolUseCase(InMemoryToolRegistry(data_tools), self._logging)
-        names: tuple[str, ...] = tuple(tool.specification.name for tool in data_tools)
-        defaults: dict[str, dict[str, object]] = {
-            tool.specification.name: _tool_defaults(tool.specification) for tool in data_tools
+    @cached_property
+    def _external_mcp_connectors(self) -> dict[str, McpConnector]:
+        connectors: Mapping[str, McpConnector] = self._configuration.connector[ConnectorType.mcp]
+        return {
+            name: connector
+            for name, connector in connectors.items()
+            if name.startswith(EXTERNAL_MCP_PREFIX)
         }
 
-        def factory() -> ToolBridgeServer:
-            return ToolBridgeServer(
-                use_case,
-                names,
-                secrets.token_hex(16),
-                tool_defaults=defaults,
-                context_id=request_id_context.get(),
+    @cached_property
+    def _mcp_operation(self) -> dict[str, McpOperation]:
+        return {
+            operation.connector.name: operation
+            for operation in self._configuration.operation.by_name.values()
+            if isinstance(operation, McpOperation)
+        }
+
+    @staticmethod
+    def _guard_unique_names(tools: list[Tool]) -> None:
+        seen: set[str] = set()
+        for tool in tools:
+            if tool.name in seen:
+                raise ValueError(f"Duplicate tool name: '{tool.name}'")
+            seen.add(tool.name)
+
+    async def _external_mcp_tools(self) -> list[Tool]:
+        operations: dict[str, McpOperation] = self._mcp_operation
+        tools: list[Tool] = []
+        for name, connector in self._external_mcp_connectors.items():
+            factory = McpSessionFactory(connector, operations.get(connector.name))
+            try:
+                discovered: list[Tool] = await McpToolProvider(factory).tools()
+            except Exception as exception:
+                self._logging.warning(
+                    f"External MCP '{name}' unavailable, skipping it: {exception}"
+                )
+                continue
+            self._logging.info(
+                f"Discovered {len(discovered)} tools from '{name}': "
+                f"{', '.join(tool.name for tool in discovered)}"
             )
+            tools.extend(discovered)
+        return tools
 
-        return factory
+    def _working_directory(self) -> WorkingDirectory | None:
+        directory: Path | None = self._settings.working_directory
+        return WorkingDirectory(str(directory)) if directory else None
 
-    # ------------------------------------------------------------------------------------------- file reader
-    @staticmethod
-    def _file_reader_tool() -> FileReaderTool:
-        return FileReaderTool(
-            file_handler_provider=Handler,
-            specification=file_reader.SPECIFICATION,
+    def _execute_python(self, data_tools: list[Tool]) -> ExecutePython:
+        working_directory: WorkingDirectory | None = self._working_directory()
+        root: str | None = working_directory.root if working_directory else None
+
+        bridge: SandboxToolBridge | None = None
+        if self._settings.sandbox_tool_access and data_tools:
+            bridge = SandboxToolBridge(InvokeToolUseCase(data_tools, self._logging))
+
+        settings = SafeCodeSettings(
+            code_timeout=SANDBOX_TIMEOUT_SECONDS,
+            max_memory_mb=SANDBOX_MAX_MEMORY_MB,
+            working_directory=root,
+        )
+        sandbox = PythonSandbox(
+            code_factory=PythonSafeCodeFactory(settings=settings),
+            semaphore=asyncio.Semaphore(SANDBOX_MAX_CONCURRENCY),
+            bridge_server=bridge.server if bridge else None,
+        )
+        return ExecutePython(
+            sandbox,
+            allowed_modules=PYTHON_ALLOWLIST,
+            timeout_seconds=SANDBOX_TIMEOUT_SECONDS,
+            working_directory=root,
+            tool_signatures=[python_stub(tool) for tool in data_tools] if bridge else (),
         )
 
-    # ------------------------------------------------------------------------------------------- file writer
-    @staticmethod
-    def _file_writer_tool() -> FileWriterTool:
-        return FileWriterTool(
-            file_handler_provider=Handler,
-            specification=file_writer.SPECIFICATION,
-        )
-
-    # ------------------------------------------------------------------------------------------- resources
     async def _sqlite_repository(self, connector_name: str) -> AsyncRepository:
         connector: DatabaseConnector = self._configuration.connector.database(connector_name)
         factory: AsyncRepositoryFactory = SqliteRepositoryFactory(SqliteSettingsMapper(connector)())

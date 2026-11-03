@@ -10,20 +10,20 @@ class ProcessSettings:
     role: str
     environment: str
     configuration_directory: Path
-    vault_directory: Path | None = None
+    working_directory: Path | None = None
     sandbox_tool_access: bool = False
 
     @classmethod
     def for_role(cls, role: str) -> ProcessSettings:
         dotenv.load_dotenv()
         directory = os.getenv("CONFIGURATION_DIR", "./config")
-        vault_directory = os.getenv("SANDBOX_VAULT_DIR")
+        working_directory = os.getenv("WORKING_DIRECTORY")
 
         return cls(
             role=role,
             environment=os.getenv("APP_ENV", "debug"),
             configuration_directory=Path(directory),
-            vault_directory=Path(vault_directory) if vault_directory else None,
+            working_directory=Path(working_directory) if working_directory else None,
             sandbox_tool_access=os.getenv("SANDBOX_TOOL_ACCESS", "").lower()
             in ("true", "1", "yes", "on"),
         )

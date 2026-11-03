@@ -16,7 +16,7 @@ endif
 	uv sync
 
 test:
-	uv run pytest -n auto --disable-warnings
+	uv run pytest --disable-warnings
 
 lint:
 	uv run ruff check .
@@ -37,7 +37,7 @@ check:
 
 # --- run -------------------------------------------------------------------
 run:
-	uv run uvicorn bootstrap.application.toolbox_application:app --host 0.0.0.0 --port 8001
+	uv run granian --interface asgi --factory --host 0.0.0.0 --port 8001 --access-log --access-log-fmt '%(addr)s %(method)s %(path)s %(status)d %(dt_ms).1fms' bootstrap.application.toolbox_application:create_toolbox_application
 
 clean:
 	rm -rf dist src/*.egg-info

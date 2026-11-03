@@ -1,22 +1,13 @@
-from typing import Protocol, runtime_checkable
+from abc import ABC, abstractmethod
 
-from agent_toolbox.domain.model.tool_invocation import ToolInvocation
-from agent_toolbox.domain.model.tool_outcome import ToolOutcome
-from agent_toolbox.domain.model.tool_specification import ToolSpecification
+from pydantic import BaseModel
 
 
-@runtime_checkable
-class ToolPort(Protocol):
-    @property
-    def specification(self) -> ToolSpecification: ...
+class Tool[I: BaseModel, O: BaseModel](ABC):
+    name: str
+    description: str
+    input_model: type[I]
+    output_model: type[O]
 
-    async def invoke(self, invocation: ToolInvocation) -> ToolOutcome: ...
-
-
-@runtime_checkable
-class ToolRegistryPort(Protocol):
-    def get(self, name: str) -> ToolPort: ...
-
-    def specifications(self) -> list[ToolSpecification]: ...
-
-    def names(self) -> list[str]: ...
+    @abstractmethod
+    async def run(self, arguments: I) -> O: ...

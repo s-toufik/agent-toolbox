@@ -1,17 +1,21 @@
 from pathlib import Path
 
+from agent_toolbox.adapter.outbound.code.python_tool import ExecutePython
 from bootstrap.configuration.settings import ProcessSettings
 from bootstrap.di.toolbox_di import ToolboxDI
 
 REAL_CONFIG_DIR = Path(__file__).resolve().parents[3] / "config"
+TOOL_NAMES = {"users_tables", "python_executor", "file_reader", "file_writer"}
 
 
-def make_di(tmp_path: Path) -> ToolboxDI:
+def make_di(sandbox_tool_access: bool = False, working_directory: Path | None = None) -> ToolboxDI:
     return ToolboxDI(
         ProcessSettings(
             role="toolbox",
             environment="debug",
             configuration_directory=REAL_CONFIG_DIR,
+            working_directory=working_directory,
+            sandbox_tool_access=sandbox_tool_access,
         )
     )
 
@@ -23,89 +27,43 @@ def _set_required_env(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setenv("CHECKPOINT_DB_NAME", "checkpoint")
 
 
-def test_python_tool_is_wired_to_the_python_executor_specification(tmp_path, monkeypatch) -> None:
+async def test_use_case_serves_every_tool_and_connects_the_sqlite_repository(
+    tmp_path, monkeypatch
+) -> None:
     _set_required_env(monkeypatch, tmp_path)
-    di = make_di(tmp_path)
+    di = make_di()
 
-    tool = di._python_tool([])
+    use_case = await di._invoke_tool_use_case()
 
-    assert tool.specification.name == "python_executor"
-
-
-async def test_sql_tool_connects_a_real_sqlite_repository(tmp_path, monkeypatch) -> None:
-    _set_required_env(monkeypatch, tmp_path)
-    di = make_di(tmp_path)
-
-    tool = await di._sql_tool()
-
-    assert tool.specification.name == "users_tables"
+    assert {tool.name for tool in use_case.tools} == TOOL_NAMES
     assert len(di._repositories) == 1
-
-    await di._stop_factories()
-
-
-async def test_tools_returns_both_the_sql_and_python_tools(tmp_path, monkeypatch) -> None:
-    _set_required_env(monkeypatch, tmp_path)
-    di = make_di(tmp_path)
-
-    tools = await di._tools()
-
-    assert {tool.specification.name for tool in tools} == {
-        "users_tables",
-        "python_executor",
-        "file_reader",
-        "file_writer",
+    assert await use_case.invoke("python_executor", {"code": "result = 1 + 1"}) == {
+        "result_type": "int",
+        "result": 2,
+        "stdout": "",
     }
 
     await di._stop_factories()
 
 
-def test_file_reader_tool_is_wired_to_the_file_reader_specification(tmp_path, monkeypatch) -> None:
+def test_python_tool_has_no_tool_functions_without_sandbox_tool_access(tmp_path) -> None:
+    tool: ExecutePython = make_di()._execute_python([])
+
+    assert "ToolError" not in tool.description
+
+
+async def test_python_tool_lists_the_data_tools_with_sandbox_tool_access(
+    tmp_path, monkeypatch
+) -> None:
     _set_required_env(monkeypatch, tmp_path)
-    di = make_di(tmp_path)
+    di = make_di(sandbox_tool_access=True, working_directory=tmp_path)
 
-    tool = di._file_reader_tool()
+    [python] = [
+        tool for tool in (await di._invoke_tool_use_case()).tools if tool.name == "python_executor"
+    ]
 
-    assert tool.specification.name == "file_reader"
-
-
-def test_file_writer_tool_is_wired_to_the_file_writer_specification(tmp_path, monkeypatch) -> None:
-    _set_required_env(monkeypatch, tmp_path)
-    di = make_di(tmp_path)
-
-    tool = di._file_writer_tool()
-
-    assert tool.specification.name == "file_writer"
-
-
-async def test_tool_registry_exposes_both_tools_by_name(tmp_path, monkeypatch) -> None:
-    _set_required_env(monkeypatch, tmp_path)
-    di = make_di(tmp_path)
-
-    registry = await di._tool_registry()
-
-    assert set(registry.names()) == {
-        "users_tables",
-        "python_executor",
-        "file_reader",
-        "file_writer",
-    }
-
-    await di._stop_factories()
-
-
-async def test_execute_tool_use_case_is_wired_to_the_given_registry(tmp_path, monkeypatch) -> None:
-    _set_required_env(monkeypatch, tmp_path)
-    di = make_di(tmp_path)
-    registry = await di._tool_registry()
-
-    use_case = di._execute_tool_use_case(registry)
-
-    from agent_toolbox.domain.model.tool_invocation import ToolInvocation
-
-    outcome = await use_case.execute(
-        ToolInvocation(id="1", name="python_executor", arguments={"code": "result = 1 + 1"})
-    )
-    assert not outcome.failed
+    assert "file_reader(*, file_path: str" in python.description
+    assert "users_tables(*, query: str, dialect: str = 'sqlite') -> {rows:" in python.description
+    assert f"Working directory: {tmp_path}." in python.description
 
     await di._stop_factories()

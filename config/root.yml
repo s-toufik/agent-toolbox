@@ -1,6 +1,9 @@
 application_configuration:
   env: ${oc.env:APP_ENV,debug}
   run: async
+  log: ${oc.env:LOG_LEVEL,INFO}
+
+  server: {}
 
   connector:
     database:
