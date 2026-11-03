@@ -187,4 +187,11 @@ uv run pre-commit install --hook-type pre-commit --hook-type pre-push
 
 `make docker_build` builds `agent-toolbox:local`. It listens on port 8001; set the environment variables above on the container, with `TOOLBOX_URL` matching the address clients use.
 
+On the homelab it runs as a Helm release: [`devops/helm/values.yml`](devops/helm/values.yml) is how it runs there (env variables, Secrets it reads, port, probes, volumes). A tag `vX.Y.Z` publishes the image `toufik142/agent-toolbox:X.Y.Z` and the chart `oci://ghcr.io/s-toufik/charts/agent-toolbox:X.Y.Z` with those values built in; homelab-infra's DevOps guide (Release an app) deploys it.
+
+```bash
+git tag v1.1.0
+git push origin v1.1.0
+```
+
 The image is served by [Granian](https://github.com/emmett-framework/granian), configured with `GRANIAN_*` variables in the Dockerfile (ASGI interface, factory, host, port, access log). Set any other Granian option the same way in your deployment, without rebuilding: for example `GRANIAN_WORKERS=2` for two worker processes (each one builds its own server and tools), or `GRANIAN_WORKERS_MAX_RSS=1024` to restart a worker that grows above 1 GiB — useful here, since `python_executor` runs user code.
