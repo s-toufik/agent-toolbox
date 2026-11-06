@@ -1,12 +1,9 @@
-# How agent-toolbox runs on the homelab: values for the `app` chart (kube-charts). CI builds the
-# chart from this file on a release tag vX.Y.Z; every key is described in kube-charts'
-# charts/app/values.yaml. MCP clients on the tailnet's devices use http://<domain>:8001/mcp; the
-# server decides who else may connect (homelab-infra, its NetworkPolicy).
+replicas: 1
 
 ports:
   - name: http
     port: 8001
-    hostPort: 8001   # on the server's Tailscale address only
+    hostPort: 8001
 
 env:
   APP_ENV: deploy
@@ -15,8 +12,6 @@ env:
   OTEL_HOST: otel-collector
   OTEL_PORT: "4317"
   TOOLBOX_URL: http://agent-toolbox:8001/mcp
-  # Host names it answers to besides agent-toolbox:8001 (DNS-rebinding protection): the server's
-  # Tailscale name and address
   TOOLBOX_EXTRA_ALLOWED_HOSTS: "{{ .Values.global.domain }}:8001,{{ .Values.global.hostIP }}:8001"
   USER_DB_HOST: /data/sqlite
   USER_DB_NAME: user
@@ -57,11 +52,9 @@ persistence:
     mountPath: /data/working_directory
     size: 5Gi
 
-# Its logs go to the OTel Collector over OTLP, so they aren't collected a second time from stdout
 podAnnotations:
   homelab.io/logs: otlp
 
-# The image's app user
 podSecurityContext:
   runAsNonRoot: true
   runAsUser: 1000
