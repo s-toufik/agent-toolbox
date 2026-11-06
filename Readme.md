@@ -187,11 +187,51 @@ uv run pre-commit install --hook-type pre-commit --hook-type pre-push
 
 `make docker_build` builds `agent-toolbox:local`. It listens on port 8001; set the environment variables above on the container, with `TOOLBOX_URL` matching the address clients use.
 
-On the homelab it runs as a Helm release: [`devops/helm/values.yml`](devops/helm/values.yml) is how it runs there (env variables, Secrets it reads, port, probes, volumes). A tag `vX.Y.Z` publishes the image `toufik142/agent-toolbox:X.Y.Z` and the chart `oci://ghcr.io/s-toufik/charts/agent-toolbox:X.Y.Z` with those values built in; homelab-infra's DevOps guide (Release an app) deploys it.
+On the homelab it runs as a Helm release: [`devops/helm/values.yml`](devops/helm/values.yml) is how it runs there (env variables, Secrets it reads, port, probes, volumes). homelab-infra adds only this server's choices, in `apps/agent-toolbox/values.yaml.gotmpl` (its NetworkPolicy: who may call it and what it may reach).
+
+#### Git flow: what each branch and tag publishes
+
+```text
+ feature/…  ──PR──►  develop  ──PR──►  main  ──tag vX.Y.Z──►  a release
+                        │                 │                        │
+                        ▼                 ▼                        ▼
+                  image :dev        image :latest       image toufik142/agent-toolbox:X.Y.Z
+                  (never deployed)  (never deployed)    chart oci://ghcr.io/s-toufik/charts/agent-toolbox:X.Y.Z
+                                                        deployed once homelab-infra's versions.yaml says X.Y.Z
+```
+
+| Event | CI ([`.github/workflows/cicd.yml`](.github/workflows/cicd.yml)) | Publishes | On the homelab |
+|---|---|---|---|
+| Pull request to `develop` or `main` | LINT, TYPECHECK, TEST, BUILD | nothing | nothing changes |
+| Push to `develop` | the same + PUBLISH | image `:dev`, `:dev-<sha>` | nothing changes |
+| Push to `main` | the same + PUBLISH | image `:latest`, `:latest-<sha>` | nothing changes |
+| Tag `vX.Y.Z` | the same + PUBLISH + CHART | image `:X.Y.Z`, chart `agent-toolbox:X.Y.Z` | nothing yet: deployed once homelab-infra asks for `X.Y.Z` |
+
+Only tags reach the homelab. The `dev` and `latest` images are for trying a build by hand; the server never pulls them.
+
+#### What is deployed
+
+The homelab runs the version in homelab-infra's [`environments/versions.yaml`](https://github.com/s-toufik/homelab-infra/blob/develop/environments/versions.yaml), `apps.agentToolbox`. On the server:
 
 ```bash
-git tag v1.1.0
-git push origin v1.1.0
+helm -n homelab list --filter '^agent-toolbox$'      # CHART agent-toolbox-X.Y.Z, APP VERSION X.Y.Z
+kubectl -n homelab get deploy agent-toolbox -o jsonpath='{.spec.template.spec.containers[0].image}'; echo
 ```
+
+#### Release a version
+
+1. Merge `develop` into `main` (pull request); CI is green.
+2. Tag `main`:
+   ```bash
+   git switch main && git pull
+   git tag vX.Y.Z
+   git push origin vX.Y.Z
+   ```
+3. **Actions**: PUBLISH and CHART are green.
+4. In homelab-infra: `apps.agentToolbox: X.Y.Z` in `environments/versions.yaml`, commit, push.
+5. On the server, in homelab-infra: `git pull`, `make diff R=agent-toolbox`, `make apply R=agent-toolbox` (raw: `helmfile -l name=agent-toolbox apply`).
+6. Check: the `helm list` above shows `X.Y.Z`; `make logs R=agent-toolbox`.
+
+Roll back: set the previous version in `versions.yaml` and `make apply R=agent-toolbox`, or right away `make rollback R=agent-toolbox` (raw: `helm -n homelab rollback agent-toolbox`). The step-by-step version is homelab-infra's DevOps guide, **Release an app** and **Roll back**.
 
 The image is served by [Granian](https://github.com/emmett-framework/granian), configured with `GRANIAN_*` variables in the Dockerfile (ASGI interface, factory, host, port, access log). Set any other Granian option the same way in your deployment, without rebuilding: for example `GRANIAN_WORKERS=2` for two worker processes (each one builds its own server and tools), or `GRANIAN_WORKERS_MAX_RSS=1024` to restart a worker that grows above 1 GiB — useful here, since `python_executor` runs user code.
