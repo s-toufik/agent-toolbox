@@ -38,6 +38,12 @@ SANDBOX_MAX_MEMORY_MB: int = 256
 SANDBOX_MAX_CONCURRENCY: int = 8
 
 
+def root_causes(error: BaseException) -> str:
+    if isinstance(error, BaseExceptionGroup):
+        return "; ".join(root_causes(inner) for inner in error.exceptions)
+    return f"{type(error).__name__}: {error}"
+
+
 class ToolboxDI(BaseDI):
     async def _invoke_tool_use_case(self) -> InvokeToolUseCase:
         working_directory: WorkingDirectory | None = self._working_directory()
@@ -95,7 +101,7 @@ class ToolboxDI(BaseDI):
                 discovered: list[Tool] = await provider.tools()
             except Exception as exception:
                 self._logging.warning(
-                    f"External MCP '{name}' unavailable, skipping it: {exception}"
+                    f"External MCP '{name}' unavailable, skipping it: {root_causes(exception)}"
                 )
                 continue
             self._logging.info(

@@ -2,7 +2,7 @@ from pathlib import Path
 
 from agent_toolbox.adapter.outbound.code.python_tool import ExecutePython
 from bootstrap.configuration.settings import ProcessSettings
-from bootstrap.di.toolbox_di import ToolboxDI
+from bootstrap.di.toolbox_di import ToolboxDI, root_causes
 
 REAL_CONFIG_DIR = Path(__file__).resolve().parents[3] / "config"
 TOOL_NAMES = {"users_tables", "python_executor", "file_reader", "file_writer"}
@@ -82,3 +82,12 @@ async def test_external_mcp_servers_without_a_url_are_skipped(tmp_path, monkeypa
     }
     assert await di._external_mcp_tools() == []
     assert di._mcp_operation["external_mcp_mongodb"].parameters["prefix"] == "mongodb"
+
+
+def test_a_failed_discovery_names_the_errors_inside_the_task_group() -> None:
+    group = ExceptionGroup(
+        "unhandled errors in a TaskGroup",
+        [ConnectionError("refused"), ExceptionGroup("inner", [ValueError("bad schema")])],
+    )
+
+    assert root_causes(group) == "ConnectionError: refused; ValueError: bad schema"
