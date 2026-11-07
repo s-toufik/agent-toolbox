@@ -2,6 +2,7 @@ import asyncio
 from collections.abc import Mapping
 from functools import cached_property
 from pathlib import Path
+from typing import Any
 
 from pycraftcore.application_configuration.enum import ConnectorType
 from pycraftcore.application_configuration.model.connector import DatabaseConnector, McpConnector
@@ -79,9 +80,19 @@ class ToolboxDI(BaseDI):
         operations: dict[str, McpOperation] = self._mcp_operation
         tools: list[Tool] = []
         for name, connector in self._external_mcp_connectors.items():
-            factory = McpSessionFactory(connector, operations.get(connector.name))
+            if not connector.base_url.strip():
+                self._logging.info(f"External MCP '{name}' has no URL, skipping it")
+                continue
+            operation: McpOperation | None = operations.get(connector.name)
+            parameters: Mapping[str, Any] = operation.parameters if operation else {}
+            factory = McpSessionFactory(connector, operation)
+            provider = McpToolProvider(
+                factory,
+                prefix=str(parameters.get("prefix") or name.removeprefix(EXTERNAL_MCP_PREFIX)),
+                allowed=list(parameters.get("tools") or []) or None,
+            )
             try:
-                discovered: list[Tool] = await McpToolProvider(factory).tools()
+                discovered: list[Tool] = await provider.tools()
             except Exception as exception:
                 self._logging.warning(
                     f"External MCP '{name}' unavailable, skipping it: {exception}"
