@@ -17,9 +17,11 @@ class McpBackedTool(Tool[BaseModel, BaseModel]):
         description: str,
         input_schema: dict[str, Any] | None,
         output_schema: dict[str, Any] | None,
+        remote_name: str | None = None,
     ) -> None:
         self._session_factory = session_factory
         self.name = name
+        self.remote_name = remote_name or name
         self.description = description
         self.input_model = model_from_schema(f"{name}_input", input_schema)
         self.output_model = model_from_schema(f"{name}_output", output_schema)
@@ -28,10 +30,10 @@ class McpBackedTool(Tool[BaseModel, BaseModel]):
         try:
             async with self._session_factory.session() as session:
                 result: CallToolResult = await session.call_tool(
-                    self.name, arguments.model_dump(exclude_none=True)
+                    self.remote_name, arguments.model_dump(exclude_none=True)
                 )
         except Exception as exception:
-            raise ToolFailure(f"MCP call '{self.name}' failed: {exception}") from exception
+            raise ToolFailure(f"MCP call '{self.remote_name}' failed: {exception}") from exception
         if result.is_error:
             raise ToolFailure(_stringify(result.content))
         payload: Any = (

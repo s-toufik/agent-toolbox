@@ -67,3 +67,18 @@ async def test_python_tool_lists_the_data_tools_with_sandbox_tool_access(
     assert f"Working directory: {tmp_path}." in python.description
 
     await di._stop_factories()
+
+
+async def test_external_mcp_servers_without_a_url_are_skipped(tmp_path, monkeypatch) -> None:
+    _set_required_env(monkeypatch, tmp_path)
+    for variable in ("GRAFANA_MCP_URL", "MONGODB_MCP_URL", "POSTGRES_MCP_URL"):
+        monkeypatch.delenv(variable, raising=False)
+    di = make_di()
+
+    assert set(di._external_mcp_connectors) == {
+        "external_mcp_grafana",
+        "external_mcp_mongodb",
+        "external_mcp_postgres",
+    }
+    assert await di._external_mcp_tools() == []
+    assert di._mcp_operation["external_mcp_mongodb"].parameters["prefix"] == "mongodb"

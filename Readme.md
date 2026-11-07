@@ -52,6 +52,10 @@ The server is the reference for what it offers: an MCP client lists the tools (`
 | `file_writer` | Writes (replaces) a file in one of the same formats | `file_path`, `data` |
 | `python_executor` | Runs Python for analysis or computation; the value of the variable `result` is returned, along with what the code printed. When the code fails, the error returns what it printed before failing and the traceback of its own lines (line numbers and source), so the model can fix it | `code` |
 
+| `grafana_*` | Grafana's MCP server: search and read dashboards, datasources, alert rules, PromQL and Loki queries | per tool (see `tools/list`) |
+| `mongodb_*` | MongoDB's MCP server: list databases and collections, schema, find, aggregate, count — writes only when the deployment allows them | per tool |
+| `postgres_*` | PostgreSQL's MCP server (postgres-mcp): schemas, objects, `execute_sql`, explain, health — read-only unless the deployment allows writes | per tool |
+
 A call with invalid arguments gets an error naming the bad fields. Every tool added later follows the same rules: published with its schema, callable directly and from the sandbox.
 
 **The working directory.** When `WORKING_DIRECTORY` is set, every file a tool reads or writes lives there, and relative paths name the same file in a tool call and inside `python_executor` code. Access outside it is refused.
@@ -70,6 +74,28 @@ df = pd.DataFrame(rows["rows"])
 file_writer(file_path="users_by_country.csv", data=df.to_csv(index=False))
 result = df.sort_values("users", ascending=False).head(3).to_dict("records")
 ```
+
+### Tools from other MCP servers
+
+The toolbox also republishes the tools of other MCP servers, as its own: listed in `tools/list`, called the same way, and available as functions in `python_executor` code. Each server's tools carry its prefix, and names are made valid Python (`list-databases` → `mongodb_list_databases`):
+
+| Server | Prefix | URL variable | Transport |
+|---|---|---|---|
+| [Grafana MCP](https://github.com/grafana/mcp-grafana) | `grafana_` | `GRAFANA_MCP_URL` | streamable HTTP |
+| [MongoDB MCP Server](https://github.com/mongodb-js/mongodb-mcp-server) | `mongodb_` | `MONGODB_MCP_URL` | streamable HTTP |
+| [postgres-mcp](https://github.com/crystaldba/postgres-mcp) | `postgres_` | `POSTGRES_MCP_URL` | SSE |
+
+```python
+databases = mongodb_list_databases()
+rows = postgres_execute_sql(sql="SELECT schemaname, COUNT(*) FROM pg_tables GROUP BY 1")
+result = {"databases": databases["result"], "tables": rows["result"]}
+```
+
+- A server whose URL is empty is skipped; one that doesn't answer at start-up is skipped with a warning, and its tools appear at the next start.
+- What each server may do (read-only or read-write, which tools) is decided where it runs; the toolbox republishes what it offers.
+- To keep only some of a server's tools, list their remote names under its operation's `tools` in `config/<APP_ENV>/operation/mcp.yml`.
+
+**Add another server:** a connector named `external_mcp_<name>` in `config/<APP_ENV>/connector/mcp.yml` (its URL from an environment variable, `''` by default), an operation of the same name with its `prefix` in `config/<APP_ENV>/operation/mcp.yml`, both listed in `config/root.yml`, and the variable in `.env.example` and `devops/helm/values.yml`.
 
 ### Connect a client
 
@@ -104,6 +130,7 @@ npx @modelcontextprotocol/inspector
 | `TOOLBOX_EXTRA_ALLOWED_HOSTS` | Other `host:port` values clients may use, comma-separated |
 | `WORKING_DIRECTORY` | The folder file tools and the sandbox are confined to; unset = no working directory |
 | `SANDBOX_TOOL_ACCESS` | `true` to make the tools callable from `python_executor` code |
+| `GRAFANA_MCP_URL`, `MONGODB_MCP_URL`, `POSTGRES_MCP_URL` | Other MCP servers whose tools are republished (see [Tools from other MCP servers](#tools-from-other-mcp-servers)); empty = skipped |
 | `OTEL_HOST`, `OTEL_PORT` | OpenTelemetry collector (gRPC); an empty host turns telemetry off |
 
 Tools that reach a backend add their own settings, read through a connector in `config/<APP_ENV>/connector/`. Today the SQL tool reads its SQLite database from `USER_DB_HOST` (folder) and `USER_DB_NAME` (file). `.env.example` is the reference for the full list.
@@ -147,7 +174,7 @@ Direct calls and calls from sandboxed code go through the same `InvokeToolUseCas
 | `src/agent_toolbox/application/` | `InvokeToolUseCase` and its ports: `Tool` (the base every tool extends), `CodeSandboxPort` |
 | `src/agent_toolbox/adapter/inbound/mcp/` | `ToolBinder` (tools → MCP), the ASGI app and allowed hosts, the actuator routes |
 | `src/agent_toolbox/adapter/inbound/sandbox/` | `SandboxToolBridge`: lets sandboxed code call the tools |
-| `src/agent_toolbox/adapter/outbound/` | The tools, one folder per area (`sql/`, `file/`, `code/`, … ), and `sandbox/` (`PythonSandbox`) |
+| `src/agent_toolbox/adapter/outbound/` | The tools, one folder per area (`sql/`, `file/`, `code/`, … ), `mcp/` (other MCP servers' tools, prefixed), and `sandbox/` (`PythonSandbox`) |
 | `src/bootstrap/` | Settings, `ToolboxDI` (wiring only), the application |
 | `tests/` | Unit, architecture and contract tests |
 

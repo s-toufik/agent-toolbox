@@ -12,5 +12,11 @@ application_configuration:
       open_telemetry: ${connector.telemetry}
     mcp:
       self: ${connector.self}
+      external_mcp_grafana: ${connector.external_mcp_grafana}
+      external_mcp_mongodb: ${connector.external_mcp_mongodb}
+      external_mcp_postgres: ${connector.external_mcp_postgres}
 
-  operation: {}
+  operation:
+    external_mcp_grafana: ${operation.external_mcp_grafana}
+    external_mcp_mongodb: ${operation.external_mcp_mongodb}
+    external_mcp_postgres: ${operation.external_mcp_postgres}

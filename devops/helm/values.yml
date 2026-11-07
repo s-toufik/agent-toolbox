@@ -17,6 +17,9 @@ env:
   USER_DB_NAME: user
   SANDBOX_TOOL_ACCESS: "true"
   WORKING_DIRECTORY: /data/working_directory
+  GRAFANA_MCP_URL: http://grafana-mcp:8000/mcp
+  MONGODB_MCP_URL: http://mongodb-mcp:3000/mcp
+  POSTGRES_MCP_URL: http://postgres-mcp:8000/sse
 
 probes:
   startup:

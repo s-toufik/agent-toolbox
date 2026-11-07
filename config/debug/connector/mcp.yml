@@ -7,3 +7,27 @@ connector:
     transport: streamable_http
     auth:
       type: none
+  external_mcp_grafana:
+    name: external_mcp_grafana
+    type: mcp
+    base_url: ${oc.env:GRAFANA_MCP_URL,''}
+    timeout: 60
+    transport: streamable_http
+    auth:
+      type: none
+  external_mcp_mongodb:
+    name: external_mcp_mongodb
+    type: mcp
+    base_url: ${oc.env:MONGODB_MCP_URL,''}
+    timeout: 60
+    transport: streamable_http
+    auth:
+      type: none
+  external_mcp_postgres:
+    name: external_mcp_postgres
+    type: mcp
+    base_url: ${oc.env:POSTGRES_MCP_URL,''}
+    timeout: 60
+    transport: sse
+    auth:
+      type: none
