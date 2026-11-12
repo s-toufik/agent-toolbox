@@ -1,4 +1,4 @@
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 
 from agent_toolbox.adapter.outbound.code.model.python_execution_input import ExecutePythonInput
 from agent_toolbox.adapter.outbound.code.model.python_execution_output import ExecutePythonOutput
@@ -20,11 +20,28 @@ class ExecutePython(Tool[ExecutePythonInput, ExecutePythonOutput]):
         timeout_seconds: int,
         working_directory: str | None = None,
         tool_signatures: Iterable[str] = (),
+        signatures: Callable[[], Iterable[str]] | None = None,
     ) -> None:
         self._sandbox = sandbox
-        self.description = _description(
-            sorted(allowed_modules), timeout_seconds, working_directory, tuple(tool_signatures)
+        self._allowed_modules = sorted(allowed_modules)
+        self._timeout_seconds = timeout_seconds
+        self._working_directory = working_directory
+        self._tool_signatures: Callable[[], Iterable[str]] = signatures or _fixed(
+            tuple(tool_signatures)
         )
+
+    @property
+    def description(self) -> str:
+        return _description(
+            self._allowed_modules,
+            self._timeout_seconds,
+            self._working_directory,
+            tuple(self._tool_signatures()),
+        )
+
+    @description.setter
+    def description(self, _: str) -> None:
+        raise AttributeError("python_executor's description is built from the tools it can call")
 
     async def run(self, arguments: ExecutePythonInput) -> ExecutePythonOutput:
         if not arguments.code.strip():
@@ -32,6 +49,10 @@ class ExecutePython(Tool[ExecutePythonInput, ExecutePythonOutput]):
 
         run: SandboxRun = await self._sandbox.run(arguments.code)
         return ExecutePythonOutput(result_type=run.type_name, result=run.value, stdout=run.printed)
+
+
+def _fixed(signatures: tuple[str, ...]) -> Callable[[], tuple[str, ...]]:
+    return lambda: signatures
 
 
 def _description(

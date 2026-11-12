@@ -5,19 +5,21 @@ from typing import Any
 from pycraftcore.logger.port import Logger
 from pydantic import BaseModel, ValidationError
 
+from agent_toolbox.application.catalog.tool_catalog import ToolCatalog
+from agent_toolbox.application.port.outbound.tool_lookup_port import ToolLookup
 from agent_toolbox.application.port.outbound.tool_port import Tool
 from agent_toolbox.domain.exception.tool_failure import ToolFailure
 from agent_toolbox.domain.exception.unknown_tool_exception import UnknownToolException
 
 
 class InvokeToolUseCase:
-    def __init__(self, tools: Iterable[Tool], logger: Logger) -> None:
-        self._tools: dict[str, Tool] = {tool.name: tool for tool in tools}
+    def __init__(self, tools: ToolLookup | Iterable[Tool], logger: Logger) -> None:
+        self._tools: ToolLookup = tools if isinstance(tools, ToolLookup) else ToolCatalog(tools)
         self._logger = logger
 
     @property
     def tools(self) -> tuple[Tool, ...]:
-        return tuple(self._tools.values())
+        return self._tools.tools
 
     async def invoke(self, name: str, arguments: Mapping[str, Any]) -> dict[str, Any]:
         self._logger.info(f"tool '{name}' invoked")

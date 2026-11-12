@@ -17,13 +17,23 @@ class ToolBinder:
 
     def bind(self, server: MCPServer) -> list[str]:
         for tool in self._invoker.tools:
-            server.add_tool(
-                self._handler(tool),
-                name=tool.name,
-                description=described(tool),
-                structured_output=True,
-            )
+            self.bind_one(server, tool)
         return [tool.name for tool in self._invoker.tools]
+
+    def bind_one(self, server: MCPServer, tool: Tool) -> None:
+        server.add_tool(
+            self._handler(tool),
+            name=tool.name,
+            description=described(tool),
+            structured_output=True,
+        )
+
+    @staticmethod
+    def unbind(server: MCPServer, name: str) -> None:
+        try:
+            server.remove_tool(name)
+        except ToolError:
+            pass
 
     def _handler(self, tool: Tool) -> Callable[..., Any]:
         invoker = self._invoker
@@ -46,7 +56,7 @@ class ToolBinder:
             for name, field in tool.input_model.model_fields.items()
         ]
         handler.__name__ = tool.name
-        handler.__signature__ = inspect.Signature(  # ty: ignore[unresolved-attribute]
+        handler.__signature__ = inspect.Signature(  # ty: ignore[missing-attribute]
             parameters, return_annotation=tool.output_model
         )
         handler.__annotations__ = {parameter.name: parameter.annotation for parameter in parameters}

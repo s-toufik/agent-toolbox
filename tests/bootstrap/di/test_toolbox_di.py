@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from agent_toolbox.adapter.outbound.code.python_tool import ExecutePython
+from agent_toolbox.domain.model.refresh_policy import RefreshPolicy
 from bootstrap.configuration.settings import ProcessSettings
 from bootstrap.di.toolbox_di import ToolboxDI, root_causes
 
@@ -80,8 +81,23 @@ async def test_external_mcp_servers_without_a_url_are_skipped(tmp_path, monkeypa
         "external_mcp_mongodb",
         "external_mcp_postgres",
     }
-    assert await di._external_mcp_tools() == []
+    assert di._external_sources == []
     assert di._mcp_operation["external_mcp_mongodb"].parameters["prefix"] == "mongodb"
+
+
+async def test_external_mcp_servers_take_their_refresh_pace_from_the_configuration(
+    tmp_path, monkeypatch
+) -> None:
+    _set_required_env(monkeypatch, tmp_path)
+    monkeypatch.setenv("GRAFANA_MCP_URL", "http://grafana-mcp:8000/mcp")
+    monkeypatch.setenv("MCP_REFRESH_INTERVAL", "120")
+    monkeypatch.setenv("MCP_RETRY_DELAY", "2")
+    di = make_di()
+
+    [grafana] = di._external_sources
+
+    assert grafana.name == "grafana"
+    assert grafana.policy == RefreshPolicy(interval=120, retry_delay=2, max_retry_delay=60)
 
 
 def test_a_failed_discovery_names_the_errors_inside_the_task_group() -> None:

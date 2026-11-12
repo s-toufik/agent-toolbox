@@ -43,7 +43,7 @@ With Docker: `make docker_build` builds the image.
 
 ### The tools
 
-The server is the reference for what it offers: an MCP client lists the tools (`tools/list`) with their descriptions and full input and output schemas — the agent does it at boot. The tools available today:
+The server is the reference for what it offers: an MCP client lists the tools (`tools/list`) with their descriptions and full input and output schemas — the agent does it at boot, then every minute. The tools available today:
 
 | Tool | What it does | Inputs |
 |---|---|---|
@@ -91,7 +91,13 @@ rows = postgres_execute_sql(sql="SELECT schemaname, COUNT(*) FROM pg_tables GROU
 result = {"databases": databases["result"], "tables": rows["result"]}
 ```
 
-- A server whose URL is empty is skipped; one that doesn't answer at start-up is skipped with a warning, and its tools appear at the next start.
+- A server whose URL is empty is skipped. The others are read at start-up and again in the background, so the order the pods start in doesn't matter:
+  - each server has its own loop, so one that is down never changes how often the others are read;
+  - a server that doesn't answer is retried after 5 s, then 10, 20, 40, and every 60 s; its tools appear as soon as it answers, with no restart;
+  - a server that answers is re-read every 60 s, so tools it adds, changes or drops follow (`python_executor`'s list of functions too);
+  - these numbers are the `refresh` block of each connector in `config/<APP_ENV>/connector/mcp.yml` (`interval`, `retry_delay`, `max_retry_delay`); `MCP_REFRESH_INTERVAL`, `MCP_RETRY_DELAY` and `MCP_MAX_RETRY_DELAY` change them for every server. Leave a variable unset rather than empty, or the configuration fails to load;
+  - a server that stops answering keeps its tools listed: a call returns "its server may be down or restarting; try again later" until it's back.
+- `/actuator/health` lists each server (`UP`, or `DOWN` since when and why). The readiness probe stays about the toolbox itself, so one server down never takes the toolbox's own tools away.
 - What each server may do (read-only or read-write, which tools) is decided where it runs; the toolbox republishes what it offers.
 - To keep only some of a server's tools, list their remote names under its operation's `tools` in `config/<APP_ENV>/operation/mcp.yml`.
 
@@ -147,6 +153,8 @@ One format for every line the service writes; the third column is the request id
 
 With `OTEL_HOST` set, the same lines also go to the OpenTelemetry collector. Granian's own start and stop lines (`[INFO] Starting granian…`) keep Granian's format; access-log lines carry no request id.
 
+With `OTEL_HOST` set, every MCP request is a span (`tools/list`, `tools/call <tool>`). A caller that sends its trace context in the request's `_meta`, as the MCP SDK does, gets the toolbox's span in its own trace: the agent's tool calls appear under its `run_tools` step. Notifications (`notifications/initialized`) get no span, so they don't add a one-span trace per session.
+
 ---
 
 ## Working on the toolbox
@@ -170,9 +178,9 @@ Direct calls and calls from sandboxed code go through the same `InvokeToolUseCas
 
 | Path | What it holds |
 |---|---|
-| `src/agent_toolbox/domain/` | `WorkingDirectory`, `SandboxRun`, `ToolFailure`, `UnknownToolException` |
-| `src/agent_toolbox/application/` | `InvokeToolUseCase` and its ports: `Tool` (the base every tool extends), `CodeSandboxPort` |
-| `src/agent_toolbox/adapter/inbound/mcp/` | `ToolBinder` (tools → MCP), the ASGI app and allowed hosts, the actuator routes |
+| `src/agent_toolbox/domain/` | `WorkingDirectory`, `SandboxRun`, `DependencyHealth`, `RefreshPolicy` (the backoff), `ToolFailure`, `UnknownToolException` |
+| `src/agent_toolbox/application/` | `InvokeToolUseCase`, `ReconcileExternalTools`, `ToolCatalog` (the live list of tools), and their ports: `Tool` (the base every tool extends), `ToolLookup`, `ToolProvider`, `ToolPublisher`, `CodeSandboxPort` |
+| `src/agent_toolbox/adapter/inbound/mcp/` | `ToolBinder` (tools → MCP), `McpToolPublisher` (adds and removes tools while it runs), the ASGI app and allowed hosts, the actuator routes |
 | `src/agent_toolbox/adapter/inbound/sandbox/` | `SandboxToolBridge`: lets sandboxed code call the tools |
 | `src/agent_toolbox/adapter/outbound/` | The tools, one folder per area (`sql/`, `file/`, `code/`, … ), `mcp/` (other MCP servers' tools, prefixed), and `sandbox/` (`PythonSandbox`) |
 | `src/bootstrap/` | Settings, `ToolboxDI` (wiring only), the application |
@@ -219,12 +227,15 @@ On the homelab it runs as a Helm release: [`devops/helm/values.yml`](devops/helm
 #### Git flow: what each branch and tag publishes
 
 ```text
- feature/…  ──PR──►  develop  ──PR──►  main  ──tag vX.Y.Z──►  a release
-                        │                 │                        │
-                        ▼                 ▼                        ▼
-                  image :dev        image :latest       image toufik142/agent-toolbox:X.Y.Z
-                  (never deployed)  (never deployed)    chart oci://ghcr.io/s-toufik/charts/agent-toolbox:X.Y.Z
-                                                        deployed once homelab-infra's versions.yaml says X.Y.Z
+ feature/…  ──PR──►  develop  ──PR──►  main
+                        │                 │
+                        ├─ push           ├─ push
+                        │  image :dev     │  image :latest          (never deployed)
+                        │                 │
+                        └─ tag            └─ tag vX.Y.Z             a release
+                           vX.Y.Z-rc.N       image toufik142/agent-toolbox:X.Y.Z
+                           image only        chart oci://ghcr.io/s-toufik/charts/agent-toolbox:X.Y.Z
+                           (never deployed)  deployed once homelab-infra's versions.yaml says X.Y.Z
 ```
 
 | Event | CI ([`.github/workflows/cicd.yml`](.github/workflows/cicd.yml)) | Publishes | On the homelab |
@@ -232,9 +243,11 @@ On the homelab it runs as a Helm release: [`devops/helm/values.yml`](devops/helm
 | Pull request to `develop` or `main` | LINT, TYPECHECK, TEST, BUILD | nothing | nothing changes |
 | Push to `develop` | the same + PUBLISH | image `:dev`, `:dev-<sha>` | nothing changes |
 | Push to `main` | the same + PUBLISH | image `:latest`, `:latest-<sha>` | nothing changes |
-| Tag `vX.Y.Z` | the same + PUBLISH + CHART | image `:X.Y.Z`, chart `agent-toolbox:X.Y.Z` | nothing yet: deployed once homelab-infra asks for `X.Y.Z` |
+| Tag `vX.Y.Z-rc.N` on a commit only on `develop` | the same + RELEASE TARGET + PUBLISH | image `:X.Y.Z-rc.N` | nothing changes |
+| Tag `vX.Y.Z` on a commit of `main` | the same + RELEASE TARGET + PUBLISH + CHART | image `:X.Y.Z`, chart `agent-toolbox:X.Y.Z` | nothing yet: deployed once homelab-infra asks for `X.Y.Z` |
 
-Only tags reach the homelab. The `dev` and `latest` images are for trying a build by hand; the server never pulls them.
+- Only tags on `main` reach the homelab. The `dev`, `latest` and `-rc.N` images are for trying a build by hand; the server never pulls them.
+- RELEASE TARGET finds the branch the tag is on, the same job in every repository with this pipeline (pycraftcore and homelab-ui too). A commit on both branches counts as `main`. It refuses a tag on neither branch, a pre-release on `main` and a final version only on `develop`, and then nothing is published.
 
 #### What is deployed
 
