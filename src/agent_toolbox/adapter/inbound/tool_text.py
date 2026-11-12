@@ -1,8 +1,13 @@
+import re
 from typing import Any
 
 from pydantic import BaseModel
 
 from agent_toolbox.application.port.outbound.tool_port import Tool
+
+LONGEST_SUMMARY: int = 160
+
+_SENTENCE_END = re.compile(r"(?<=[.!?])\s")
 
 _JSON_TYPES: dict[str, str] = {
     "string": "str",
@@ -34,13 +39,15 @@ def return_shape(model: type[BaseModel]) -> str:
 
 
 def python_stub(tool: Tool) -> str:
-    lines: list[str] = [f"{call_signature(tool)} -> {return_shape(tool.output_model)}"]
-    lines += [
-        f"    {name}: {field.description}"
-        for name, field in tool.input_model.model_fields.items()
-        if field.description
-    ]
-    return "\n".join(lines)
+    stub: str = f"{call_signature(tool)} -> {return_shape(tool.output_model)}"
+    about: str = summary(tool.description)
+    return f"{stub}\n    {about}" if about else stub
+
+
+def summary(description: str) -> str:
+    first: str = _SENTENCE_END.split(description.strip(), maxsplit=1)[0]
+    first = " ".join(first.split())
+    return first if len(first) <= LONGEST_SUMMARY else first[: LONGEST_SUMMARY - 1].rstrip() + "…"
 
 
 def described(tool: Tool) -> str:

@@ -64,7 +64,7 @@ A call with invalid arguments gets an error naming the bad fields. Every tool ad
 
 - allowed modules: pandas, numpy, matplotlib, datetime and the rest of pycraftcore's allowlist (listed in the tool's description);
 - 256 MB of memory, at most 8 runs at a time, and a hard timeout;
-- with `SANDBOX_TOOL_ACCESS=true`, the other tools are available inside the code as functions that return exactly what the tool returns:
+- with `SANDBOX_TOOL_ACCESS=true`, the other tools are available inside the code as functions that return exactly what the tool returns. The tool's description lists each one in two lines, its Python signature and the first sentence of its description, so it stays small with many tools:
 
 ```python
 import pandas as pd
