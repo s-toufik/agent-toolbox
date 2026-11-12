@@ -1,5 +1,5 @@
 import asyncio
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from functools import cached_property
 from pathlib import Path
 from typing import Any
@@ -20,14 +20,23 @@ from agent_toolbox.adapter.inbound.tool_text import python_stub
 from agent_toolbox.adapter.outbound.code.python_tool import ExecutePython
 from agent_toolbox.adapter.outbound.file.reader_tool import ReadFile
 from agent_toolbox.adapter.outbound.file.writer_tool import WriteFile
+from agent_toolbox.adapter.outbound.mcp.errors import root_causes
 from agent_toolbox.adapter.outbound.mcp.mcp_tool_provider import McpToolProvider
 from agent_toolbox.adapter.outbound.mcp.session_factory import McpSessionFactory
 from agent_toolbox.adapter.outbound.sandbox.python_sandbox import PythonSandbox
 from agent_toolbox.adapter.outbound.sql.sql_tool import QueryUsers
+from agent_toolbox.application.catalog.tool_catalog import ToolCatalog
+from agent_toolbox.application.port.outbound.tool_lookup_port import ToolLookup
 from agent_toolbox.application.port.outbound.tool_port import Tool
+from agent_toolbox.application.port.outbound.tool_provider_port import ExternalSource
 from agent_toolbox.application.use_case.invoke_tool_usecase import InvokeToolUseCase
+from agent_toolbox.application.use_case.reconcile_external_tools import ReconcileExternalTools
+from agent_toolbox.domain.model.dependency_health import DependencyHealth
+from agent_toolbox.domain.model.refresh_policy import RefreshPolicy
 from agent_toolbox.domain.model.working_directory import WorkingDirectory
 from bootstrap.di.base_di import BaseDI
+
+__all__ = ["ToolboxDI", "root_causes"]
 
 EXTERNAL_MCP_PREFIX: str = "external_mcp_"
 
@@ -38,24 +47,37 @@ SANDBOX_MAX_MEMORY_MB: int = 256
 SANDBOX_MAX_CONCURRENCY: int = 8
 
 
-def root_causes(error: BaseException) -> str:
-    if isinstance(error, BaseExceptionGroup):
-        return "; ".join(root_causes(inner) for inner in error.exceptions)
-    return f"{type(error).__name__}: {error}"
-
-
 class ToolboxDI(BaseDI):
     async def _invoke_tool_use_case(self) -> InvokeToolUseCase:
-        working_directory: WorkingDirectory | None = self._working_directory()
-        data_tools: list[Tool] = [
-            QueryUsers(await self._sqlite_repository(USERS_CONNECTOR_NAME), SqlHandlerFactory()),
-            ReadFile(Handler, working_directory),
-            WriteFile(Handler, working_directory),
-        ]
-        data_tools.extend(await self._external_mcp_tools())
-        tools: list[Tool] = [self._execute_python(data_tools), *data_tools]
-        self._guard_unique_names(tools)
-        return InvokeToolUseCase(tools, self._logging)
+        catalog: ToolCatalog = self._tool_catalog
+        if not catalog.tools:
+            working_directory: WorkingDirectory | None = self._working_directory()
+            catalog.add(self._execute_python(catalog.without(ExecutePython.name)))
+            catalog.add(
+                QueryUsers(await self._sqlite_repository(USERS_CONNECTOR_NAME), SqlHandlerFactory())
+            )
+            catalog.add(ReadFile(Handler, working_directory))
+            catalog.add(WriteFile(Handler, working_directory))
+            await self._external_tools_reconciler.reconcile()
+        return InvokeToolUseCase(catalog, self._logging)
+
+    @cached_property
+    def _tool_catalog(self) -> ToolCatalog:
+        return ToolCatalog()
+
+    @cached_property
+    def _dependency_health(self) -> DependencyHealth:
+        return DependencyHealth()
+
+    @cached_property
+    def _external_tools_reconciler(self) -> ReconcileExternalTools:
+        return ReconcileExternalTools(
+            self._external_sources,
+            self._tool_catalog,
+            self._dependency_health,
+            self._logging,
+            describe_error=root_causes,
+        )
 
     @cached_property
     def _external_mcp_connectors(self) -> dict[str, McpConnector]:
@@ -74,54 +96,39 @@ class ToolboxDI(BaseDI):
             if isinstance(operation, McpOperation)
         }
 
-    @staticmethod
-    def _guard_unique_names(tools: list[Tool]) -> None:
-        seen: set[str] = set()
-        for tool in tools:
-            if tool.name in seen:
-                raise ValueError(f"Duplicate tool name: '{tool.name}'")
-            seen.add(tool.name)
-
-    async def _external_mcp_tools(self) -> list[Tool]:
+    @cached_property
+    def _external_sources(self) -> list[ExternalSource]:
         operations: dict[str, McpOperation] = self._mcp_operation
-        tools: list[Tool] = []
+        sources: list[ExternalSource] = []
         for name, connector in self._external_mcp_connectors.items():
+            short_name: str = name.removeprefix(EXTERNAL_MCP_PREFIX)
             if not connector.base_url.strip():
-                self._logging.info(f"External MCP '{name}' has no URL, skipping it")
+                self._logging.info(f"External MCP '{short_name}' has no URL, skipping it")
                 continue
             operation: McpOperation | None = operations.get(connector.name)
             parameters: Mapping[str, Any] = operation.parameters if operation else {}
-            factory = McpSessionFactory(connector, operation)
             provider = McpToolProvider(
-                factory,
-                prefix=str(parameters.get("prefix") or name.removeprefix(EXTERNAL_MCP_PREFIX)),
+                McpSessionFactory(connector, operation),
+                prefix=str(parameters.get("prefix") or short_name),
                 allowed=list(parameters.get("tools") or []) or None,
             )
-            try:
-                discovered: list[Tool] = await provider.tools()
-            except Exception as exception:
-                self._logging.warning(
-                    f"External MCP '{name}' unavailable, skipping it: {root_causes(exception)}"
-                )
-                continue
-            self._logging.info(
-                f"Discovered {len(discovered)} tools from '{name}': "
-                f"{', '.join(tool.name for tool in discovered)}"
-            )
-            tools.extend(discovered)
-        return tools
+            sources.append(ExternalSource(short_name, provider, refresh_policy(connector)))
+        return sources
 
     def _working_directory(self) -> WorkingDirectory | None:
         directory: Path | None = self._settings.working_directory
         return WorkingDirectory(str(directory)) if directory else None
 
-    def _execute_python(self, data_tools: list[Tool]) -> ExecutePython:
+    def _execute_python(self, data_tools: ToolLookup | Iterable[Tool]) -> ExecutePython:
         working_directory: WorkingDirectory | None = self._working_directory()
         root: str | None = working_directory.root if working_directory else None
+        lookup: ToolLookup = (
+            data_tools if isinstance(data_tools, ToolLookup) else ToolCatalog(data_tools)
+        )
 
         bridge: SandboxToolBridge | None = None
-        if self._settings.sandbox_tool_access and data_tools:
-            bridge = SandboxToolBridge(InvokeToolUseCase(data_tools, self._logging))
+        if self._settings.sandbox_tool_access:
+            bridge = SandboxToolBridge(InvokeToolUseCase(lookup, self._logging))
 
         settings = SafeCodeSettings(
             code_timeout=SANDBOX_TIMEOUT_SECONDS,
@@ -138,7 +145,7 @@ class ToolboxDI(BaseDI):
             allowed_modules=PYTHON_ALLOWLIST,
             timeout_seconds=SANDBOX_TIMEOUT_SECONDS,
             working_directory=root,
-            tool_signatures=[python_stub(tool) for tool in data_tools] if bridge else (),
+            signatures=(lambda: [python_stub(tool) for tool in lookup.tools]) if bridge else None,
         )
 
     async def _sqlite_repository(self, connector_name: str) -> AsyncRepository:
@@ -146,3 +153,11 @@ class ToolboxDI(BaseDI):
         factory: AsyncRepositoryFactory = SqliteRepositoryFactory(SqliteSettingsMapper(connector)())
         self._register_repository(factory)
         return await factory.connect()
+
+
+def refresh_policy(connector: McpConnector) -> RefreshPolicy:
+    return RefreshPolicy(
+        interval=connector.refresh.interval,
+        retry_delay=connector.refresh.retry_delay,
+        max_retry_delay=connector.refresh.max_retry_delay,
+    )

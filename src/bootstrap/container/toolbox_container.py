@@ -1,5 +1,6 @@
+import asyncio
 from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from functools import cached_property
 
 from mcp.server.mcpserver import MCPServer
@@ -12,6 +13,8 @@ from agent_toolbox.adapter.inbound.mcp.actuator import ActuatorRouter
 from agent_toolbox.adapter.inbound.mcp.mcp_asgi_factory import build_mcp_asgi_app
 from agent_toolbox.adapter.inbound.mcp.mcp_server_factory import build_mcp_server
 from agent_toolbox.adapter.inbound.mcp.tool_binder import ToolBinder
+from agent_toolbox.adapter.inbound.mcp.tool_publisher import McpToolPublisher
+from agent_toolbox.adapter.outbound.code.python_tool import ExecutePython
 from bootstrap.di.toolbox_di import ToolboxDI
 from src import (
     APPLICATION_AUTHORS_EMAIL,
@@ -49,6 +52,7 @@ class ToolboxContainer(ToolboxDI):
             app_version=APPLICATION_VERSION,
             app_deployment_environment=APPLICATION_DEPLOYMENT_ENVIRONMENT,
             app_authors=APPLICATION_AUTHORS_EMAIL,
+            dependencies=self._dependency_health.snapshot,
         ).register_actuator_routes()
 
         return server
@@ -69,10 +73,24 @@ class ToolboxContainer(ToolboxDI):
     async def boot(self, server: MCPServer | None = None) -> None:
         target = server or self.mcp_server
         _ = self._telemetry_provider
-        bound = ToolBinder(await self._invoke_tool_use_case()).bind(target)
+        binder = ToolBinder(await self._invoke_tool_use_case())
+        bound = binder.bind(target)
         self.logging.info(f"Toolbox container booted, tools exposed: {', '.join(bound)}")
+        reconciler = self._external_tools_reconciler
+        reconciler.publish_to(
+            McpToolPublisher(target, binder, self._tool_catalog, refreshed=(ExecutePython.name,))
+        )
+        if "_reconciling" not in self.__dict__:
+            self._reconciling = asyncio.create_task(
+                reconciler.run(), name="external-mcp-reconciler"
+            )
 
     async def stop(self) -> None:
+        reconciling: asyncio.Task[None] | None = self.__dict__.pop("_reconciling", None)
+        if reconciling is not None:
+            reconciling.cancel()
+            with suppress(asyncio.CancelledError):
+                await reconciling
         await self._stop_factories()
         await self._shutdown_telemetry()
         self.logging.info("Toolbox container shut down")

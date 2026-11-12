@@ -1,3 +1,4 @@
+from types import GenericAlias
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, create_model
@@ -35,7 +36,7 @@ def _annotation(spec: dict[str, Any]) -> Any:
     if kind == "array":
         items = spec.get("items")
         element_type = _annotation(items) if isinstance(items, dict) else Any
-        return list[element_type]
+        return GenericAlias(list, (element_type,))
     if kind == "object":
         return dict[str, Any]
     if isinstance(kind, list):

@@ -3,6 +3,7 @@ from typing import Any
 from mcp.types import CallToolResult, TextContent
 from pydantic import BaseModel
 
+from agent_toolbox.adapter.outbound.mcp.errors import root_causes
 from agent_toolbox.adapter.outbound.mcp.schema_model import model_from_schema
 from agent_toolbox.adapter.outbound.mcp.session_factory import McpSessionFactory
 from agent_toolbox.application.port.outbound.tool_port import Tool
@@ -33,7 +34,10 @@ class McpBackedTool(Tool[BaseModel, BaseModel]):
                     self.remote_name, arguments.model_dump(exclude_none=True)
                 )
         except Exception as exception:
-            raise ToolFailure(f"MCP call '{self.remote_name}' failed: {exception}") from exception
+            raise ToolFailure(
+                f"MCP call '{self.remote_name}' failed, its server may be down or restarting; "
+                f"try again later: {root_causes(exception)}"
+            ) from exception
         if result.is_error:
             raise ToolFailure(_stringify(result.content))
         payload: Any = (

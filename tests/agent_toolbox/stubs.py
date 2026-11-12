@@ -105,3 +105,15 @@ class Echo(Tool[EchoInput, EchoOutput]):
         if self._error:
             raise self._error
         return EchoOutput(echoed=arguments.text * arguments.times)
+
+
+class Named(Tool[EchoInput, EchoOutput]):
+    input_model = EchoInput
+    output_model = EchoOutput
+
+    def __init__(self, name: str, description: str = "A tool.") -> None:
+        self.name = name
+        self.description = description
+
+    async def run(self, arguments: EchoInput) -> EchoOutput:
+        return EchoOutput(echoed=f"{self.name}:{arguments.text}")
