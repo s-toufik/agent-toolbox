@@ -29,10 +29,10 @@ class ReconcileExternalTools:
         self._logger = logger
         self._describe_error = describe_error
         self._sleep = sleep
-        self._publisher: ToolPublisher | None = None
+        self._publishers: list[ToolPublisher] = []
 
     def publish_to(self, publisher: ToolPublisher) -> None:
-        self._publisher = publisher
+        self._publishers.append(publisher)
 
     async def reconcile(self) -> bool:
         for source in self._sources:
@@ -76,8 +76,8 @@ class ReconcileExternalTools:
                 f"{_listed(' added', [tool.name for tool in change.added])}"
                 f"{_listed(' removed', list(change.removed))}"
             )
-            if self._publisher is not None:
-                self._publisher.publish(change)
+            for publisher in self._publishers:
+                publisher.publish(change)
         return True
 
 

@@ -1,0 +1,6 @@
+operation:
+  users:
+    name: users
+    type: database
+    connector: ${connector.users}
+    database: ${oc.env:USER_DB_NAME}

@@ -17,6 +17,13 @@ application_configuration:
       external_mcp_postgres: ${connector.external_mcp_postgres}
 
   operation:
+    users: ${operation.users}
+    scope_observation: ${operation.scope_observation}
+    scope_analysis: ${operation.scope_analysis}
+    scope_coding: ${operation.scope_coding}
+    scope_security: ${operation.scope_security}
+    scope_kitchen: ${operation.scope_kitchen}
+    scope_travel: ${operation.scope_travel}
     external_mcp_grafana: ${operation.external_mcp_grafana}
     external_mcp_mongodb: ${operation.external_mcp_mongodb}
     external_mcp_postgres: ${operation.external_mcp_postgres}

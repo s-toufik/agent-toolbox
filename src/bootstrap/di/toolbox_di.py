@@ -5,8 +5,8 @@ from pathlib import Path
 from typing import Any
 
 from pycraftcore.application_configuration.enum import ConnectorType
-from pycraftcore.application_configuration.model.connector import DatabaseConnector, McpConnector
-from pycraftcore.application_configuration.model.operation import McpOperation
+from pycraftcore.application_configuration.model.connector import McpConnector
+from pycraftcore.application_configuration.model.operation import DatabaseOperation, McpOperation
 from pycraftcore.file_handler.adapter import Handler
 from pycraftcore.query_language.adapter import SqlHandlerFactory
 from pycraftcore.repository.adapter import SqliteRepositoryFactory, SqliteSettingsMapper
@@ -25,6 +25,7 @@ from agent_toolbox.adapter.outbound.mcp.mcp_tool_provider import McpToolProvider
 from agent_toolbox.adapter.outbound.mcp.session_factory import McpSessionFactory
 from agent_toolbox.adapter.outbound.sandbox.python_sandbox import PythonSandbox
 from agent_toolbox.adapter.outbound.sql.sql_tool import QueryUsers
+from agent_toolbox.application.catalog.scoped_tool_catalog import ScopedToolCatalog
 from agent_toolbox.application.catalog.tool_catalog import ToolCatalog
 from agent_toolbox.application.port.outbound.tool_lookup_port import ToolLookup
 from agent_toolbox.application.port.outbound.tool_port import Tool
@@ -33,6 +34,7 @@ from agent_toolbox.application.use_case.invoke_tool_usecase import InvokeToolUse
 from agent_toolbox.application.use_case.reconcile_external_tools import ReconcileExternalTools
 from agent_toolbox.domain.model.dependency_health import DependencyHealth
 from agent_toolbox.domain.model.refresh_policy import RefreshPolicy
+from agent_toolbox.domain.model.tool_scope import ALL_TOOLS, ToolScope
 from agent_toolbox.domain.model.working_directory import WorkingDirectory
 from bootstrap.di.base_di import BaseDI
 
@@ -40,7 +42,8 @@ __all__ = ["ToolboxDI", "root_causes"]
 
 EXTERNAL_MCP_PREFIX: str = "external_mcp_"
 
-USERS_CONNECTOR_NAME: str = "users"
+USERS_OPERATION_NAME: str = "users"
+SELF_CONNECTOR_NAME: str = "self"
 
 SANDBOX_TIMEOUT_SECONDS: int = 18000
 SANDBOX_MAX_MEMORY_MB: int = 256
@@ -48,18 +51,50 @@ SANDBOX_MAX_CONCURRENCY: int = 8
 
 
 class ToolboxDI(BaseDI):
-    async def _invoke_tool_use_case(self) -> InvokeToolUseCase:
+    async def _ready_catalog(self) -> ToolCatalog:
         catalog: ToolCatalog = self._tool_catalog
         if not catalog.tools:
             working_directory: WorkingDirectory | None = self._working_directory()
-            catalog.add(self._execute_python(catalog.without(ExecutePython.name)))
             catalog.add(
-                QueryUsers(await self._sqlite_repository(USERS_CONNECTOR_NAME), SqlHandlerFactory())
+                QueryUsers(await self._sqlite_repository(USERS_OPERATION_NAME), SqlHandlerFactory())
             )
             catalog.add(ReadFile(Handler, working_directory))
             catalog.add(WriteFile(Handler, working_directory))
             await self._external_tools_reconciler.reconcile()
-        return InvokeToolUseCase(catalog, self._logging)
+        return catalog
+
+    async def _scope_tools(self, scope: ToolScope = ALL_TOOLS) -> ScopedToolCatalog:
+        catalog: ToolCatalog = await self._ready_catalog()
+        python: ExecutePython = self._execute_python(ScopedToolCatalog(catalog, scope))
+        return ScopedToolCatalog(catalog, scope, own=(python,))
+
+    async def _invoke_tool_use_case(self, scope: ToolScope = ALL_TOOLS) -> InvokeToolUseCase:
+        return InvokeToolUseCase(await self._scope_tools(scope), self._logging)
+
+    @cached_property
+    def _scopes(self) -> tuple[ToolScope, ...]:
+        configured: list[ToolScope] = [
+            ToolScope(operation.name, tuple(operation.parameters.get("tools") or ()))
+            for operation in self._mcp_operations
+            if operation.connector.name == self._self_connector.name
+        ]
+        names: list[str] = [scope.name for scope in configured]
+        duplicated: set[str] = {name for name in names if names.count(name) > 1}
+        if duplicated:
+            raise ValueError(f"tool scopes declared twice: {', '.join(sorted(duplicated))}")
+        return (ALL_TOOLS, *configured)
+
+    @cached_property
+    def _self_connector(self) -> McpConnector:
+        return self._configuration.connector.mcp(SELF_CONNECTOR_NAME)
+
+    @cached_property
+    def _mcp_operations(self) -> tuple[McpOperation, ...]:
+        return tuple(
+            operation
+            for operation in self._configuration.operation.by_name.values()
+            if isinstance(operation, McpOperation)
+        )
 
     @cached_property
     def _tool_catalog(self) -> ToolCatalog:
@@ -92,8 +127,8 @@ class ToolboxDI(BaseDI):
     def _mcp_operation(self) -> dict[str, McpOperation]:
         return {
             operation.connector.name: operation
-            for operation in self._configuration.operation.by_name.values()
-            if isinstance(operation, McpOperation)
+            for operation in self._mcp_operations
+            if operation.connector.name != self._self_connector.name
         }
 
     @cached_property
@@ -148,9 +183,9 @@ class ToolboxDI(BaseDI):
             signatures=(lambda: [python_stub(tool) for tool in lookup.tools]) if bridge else None,
         )
 
-    async def _sqlite_repository(self, connector_name: str) -> AsyncRepository:
-        connector: DatabaseConnector = self._configuration.connector.database(connector_name)
-        factory: AsyncRepositoryFactory = SqliteRepositoryFactory(SqliteSettingsMapper(connector)())
+    async def _sqlite_repository(self, operation_name: str) -> AsyncRepository:
+        operation: DatabaseOperation = self._configuration.operation.database(operation_name)
+        factory: AsyncRepositoryFactory = SqliteRepositoryFactory(SqliteSettingsMapper(operation)())
         self._register_repository(factory)
         return await factory.connect()
 

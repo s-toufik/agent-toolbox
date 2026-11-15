@@ -2,18 +2,19 @@
 
 An MCP server that gives an agent hands: tools to query data, work with files and run Python for analysis — and a sandbox where those tools are callable as plain functions. New tools are added over time; every client discovers the current set over MCP.
 
-It is a standard MCP server: the homelab agent uses it, and so can any MCP client.
+It is a standard MCP server: the homelab agents use it, and so can any MCP client. It serves its tools by scope, one endpoint each, so every agent discovers only the tools meant for it (see [Scopes](#scopes)).
 
 **[Using the toolbox](#using-the-toolbox)** — run it, connect a client, know what each tool does.
 **[Working on the toolbox](#working-on-the-toolbox)** — how it is built and how to add a tool.
 
 ```text
                          ┌──────────────────────────────────────────────┐
-  agent / MCP client ───►│  agent-toolbox                    /mcp       │
+  agent / MCP client ───►│  agent-toolbox      /mcp (all) · /mcp/<scope>│
   (X-Request-ID)         │                                              │
                          │  data tools ───────► databases, files, …     │
                          │  python_executor ─► sandbox ─┬─► working dir │
-                         │                              └─► data tools  │
+                         │  (one per scope)             └─► its scope's │
+                         │                                  data tools  │
                          └──────────────────────────────────────────────┘
 ```
 
@@ -103,6 +104,25 @@ result = {"databases": databases["result"], "tables": rows["result"]}
 
 **Add another server:** a connector named `external_mcp_<name>` in `config/<APP_ENV>/connector/mcp.yml` (its URL from an environment variable, `''` by default), an operation of the same name with its `prefix` in `config/<APP_ENV>/operation/mcp.yml`, both listed in `config/root.yml`, and the variable in `.env.example` and `devops/helm/values.yml`.
 
+### Scopes
+
+The toolbox serves its tools by scope, one MCP endpoint each, so every agent connects to its own scope and discovers only the tools meant for it:
+
+| Scope | Endpoint | Tools |
+|---|---|---|
+| `all` | `/mcp` | every tool |
+| `observation` | `/mcp/observation` | `grafana_*` |
+| `analysis` | `/mcp/analysis` | `postgres_*`, `mongodb_*`, `users_tables`, `file_reader`, `file_writer` |
+| `coding` | `/mcp/coding` | `file_reader`, `file_writer` |
+| `security` | `/mcp/security` | `grafana_*`, `users_tables` |
+| `kitchen` | `/mcp/kitchen` | none |
+| `travel` | `/mcp/travel` | none |
+
+- **`python_executor` is in every scope.** Each scope has its own: its description lists, and its code can call, only that scope's tools.
+- **Tools from other MCP servers** join or leave each scope whose patterns match them while the toolbox runs.
+- **An endpoint shows only its scope's tools** and calls only those, so an agent can't reach a tool outside its scope through this endpoint.
+- **To add or change a scope,** edit `config/debug/operation/scope.yml`: one `mcp` operation on the `self` connector, with the scope's name as `name` and shell-style patterns as `parameters.tools`. Then list it under `operation:` in `config/root.yml`. `all` is built in.
+
 ### Connect a client
 
 Point the client's MCP connector at `http://<host>:<port>/mcp` with the `streamable_http` transport. The homelab agent's connector:
@@ -191,7 +211,7 @@ Direct calls and calls from sandboxed code go through the same `InvokeToolUseCas
 1. Define its input and output as pydantic models (`adapter/outbound/<area>/model/`). Field descriptions become the MCP schema the agent reads.
 2. Subclass `Tool[Input, Output]` with a `name`, a `description` written for the model, and `async run(arguments)`. Raise `ToolFailure` with a clear message when the call can't be served.
 3. If it needs a backend (a database, an API, …), add a connector in `config/<APP_ENV>/connector/`, list it in `config/root.yml`, put its variables in `.env.example`, and build the client in `ToolboxDI` from that connector.
-4. Register it in `ToolboxDI._invoke_tool_use_case`. It is then published over MCP and, when `SANDBOX_TOOL_ACCESS` is on, callable from `python_executor` code — no change needed in the agent, which discovers it at its next start.
+4. Register it in `ToolboxDI._ready_catalog`, and add its name to the patterns of the scopes that should offer it (`config/debug/operation/scope.yml`). It is then published over MCP at `/mcp` and those scopes' endpoints and, when `SANDBOX_TOOL_ACCESS` is on, callable from `python_executor` code — no change needed in the agent, which discovers it at its next start.
 5. Add unit tests next to the others, and its row to [The tools](#the-tools).
 
 ```python
