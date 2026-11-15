@@ -10,13 +10,13 @@ operation:
     type: mcp
     connector: ${connector.self}
     parameters:
-      tools: [postgres_*, mongodb_*, users_tables, file_reader, file_writer]
+      tools: [postgres_*, mongodb_*, users_tables, file_reader, file_writer, python_executor]
   scope_coding:
     name: coding
     type: mcp
     connector: ${connector.self}
     parameters:
-      tools: [file_reader, file_writer]
+      tools: [file_reader, file_writer, python_executor]
   scope_security:
     name: security
     type: mcp
@@ -28,10 +28,10 @@ operation:
     type: mcp
     connector: ${connector.self}
     parameters:
-      tools: []
+      tools: [python_executor]
   scope_travel:
     name: travel
     type: mcp
     connector: ${connector.self}
     parameters:
-      tools: []
+      tools: [python_executor]

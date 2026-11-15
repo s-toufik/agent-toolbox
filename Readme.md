@@ -13,7 +13,7 @@ It is a standard MCP server: the homelab agents use it, and so can any MCP clien
   (X-Request-ID)         │                                              │
                          │  data tools ───────► databases, files, …     │
                          │  python_executor ─► sandbox ─┬─► working dir │
-                         │  (one per scope)             └─► its scope's │
+                         │  (per scope that lists it)   └─► its scope's │
                          │                                  data tools  │
                          └──────────────────────────────────────────────┘
 ```
@@ -112,13 +112,13 @@ The toolbox serves its tools by scope, one MCP endpoint each, so every agent con
 |---|---|---|
 | `all` | `/mcp` | every tool |
 | `observation` | `/mcp/observation` | `grafana_*` |
-| `analysis` | `/mcp/analysis` | `postgres_*`, `mongodb_*`, `users_tables`, `file_reader`, `file_writer` |
-| `coding` | `/mcp/coding` | `file_reader`, `file_writer` |
+| `analysis` | `/mcp/analysis` | `postgres_*`, `mongodb_*`, `users_tables`, `file_reader`, `file_writer`, `python_executor` |
+| `coding` | `/mcp/coding` | `file_reader`, `file_writer`, `python_executor` |
 | `security` | `/mcp/security` | `grafana_*`, `users_tables` |
-| `kitchen` | `/mcp/kitchen` | none |
-| `travel` | `/mcp/travel` | none |
+| `kitchen` | `/mcp/kitchen` | `python_executor` |
+| `travel` | `/mcp/travel` | `python_executor` |
 
-- **`python_executor` is in every scope.** Each scope has its own: its description lists, and its code can call, only that scope's tools.
+- **`python_executor` only where a scope lists it** (`all` has it: `*` matches it). Each such scope has its own: its description lists, and its code can call, only that scope's tools.
 - **Tools from other MCP servers** join or leave each scope whose patterns match them while the toolbox runs.
 - **An endpoint shows only its scope's tools** and calls only those, so an agent can't reach a tool outside its scope through this endpoint.
 - **To add or change a scope,** edit `config/debug/operation/scope.yml`: one `mcp` operation on the `self` connector, with the scope's name as `name` and shell-style patterns as `parameters.tools`. Then list it under `operation:` in `config/root.yml`. `all` is built in.

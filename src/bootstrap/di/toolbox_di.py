@@ -65,6 +65,8 @@ class ToolboxDI(BaseDI):
 
     async def _scope_tools(self, scope: ToolScope = ALL_TOOLS) -> ScopedToolCatalog:
         catalog: ToolCatalog = await self._ready_catalog()
+        if not scope.includes(ExecutePython.name):
+            return ScopedToolCatalog(catalog, scope)
         python: ExecutePython = self._execute_python(ScopedToolCatalog(catalog, scope))
         return ScopedToolCatalog(catalog, scope, own=(python,))
 

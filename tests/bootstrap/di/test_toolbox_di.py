@@ -49,6 +49,21 @@ async def test_use_case_serves_every_tool_and_connects_the_sqlite_repository(
     await di._stop_factories()
 
 
+async def test_a_scope_without_python_executor_in_its_tools_has_none(tmp_path, monkeypatch) -> None:
+    _set_required_env(monkeypatch, tmp_path)
+    di = make_di(sandbox_tool_access=True, working_directory=tmp_path)
+    scopes = {scope.name: scope for scope in di._scopes}
+
+    observation = await di._scope_tools(scopes["observation"])
+    everything = await di._scope_tools(scopes["all"])
+
+    assert "python_executor" not in [tool.name for tool in observation.tools]
+    assert observation.get("python_executor") is None
+    assert everything.get("python_executor") is not None
+
+    await di._stop_factories()
+
+
 def test_python_tool_has_no_tool_functions_without_sandbox_tool_access(tmp_path) -> None:
     tool: ExecutePython = make_di()._execute_python([])
 
@@ -127,11 +142,11 @@ def test_the_scopes_come_from_the_operations_on_the_self_connector(tmp_path, mon
         "travel",
     ]
     assert scopes["observation"].patterns == ("grafana_*",)
-    assert scopes["kitchen"].patterns == ()
+    assert scopes["kitchen"].patterns == ("python_executor",)
     assert "toolbox" not in di._mcp_operation
 
 
-async def test_each_scope_has_its_own_python_executor_describing_only_its_tools(
+async def test_each_scope_that_lists_python_executor_has_its_own_describing_only_its_tools(
     tmp_path, monkeypatch
 ) -> None:
     _set_required_env(monkeypatch, tmp_path)
