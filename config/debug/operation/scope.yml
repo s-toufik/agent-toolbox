@@ -1,0 +1,37 @@
+operation:
+  scope_observation:
+    name: observation
+    type: mcp
+    connector: ${connector.self}
+    parameters:
+      tools: [grafana_*]
+  scope_analysis:
+    name: analysis
+    type: mcp
+    connector: ${connector.self}
+    parameters:
+      tools: [postgres_*, mongodb_*, users_tables, file_reader, file_writer]
+  scope_coding:
+    name: coding
+    type: mcp
+    connector: ${connector.self}
+    parameters:
+      tools: [file_reader, file_writer]
+  scope_security:
+    name: security
+    type: mcp
+    connector: ${connector.self}
+    parameters:
+      tools: [grafana_*, users_tables]
+  scope_kitchen:
+    name: kitchen
+    type: mcp
+    connector: ${connector.self}
+    parameters:
+      tools: []
+  scope_travel:
+    name: travel
+    type: mcp
+    connector: ${connector.self}
+    parameters:
+      tools: []

@@ -2,8 +2,10 @@ from agent_toolbox.adapter.inbound.mcp.mcp_server_factory import build_mcp_serve
 from agent_toolbox.adapter.inbound.mcp.tool_binder import ToolBinder
 from agent_toolbox.adapter.inbound.mcp.tool_publisher import McpToolPublisher
 from agent_toolbox.adapter.outbound.code.python_tool import ExecutePython
+from agent_toolbox.application.catalog.scoped_tool_catalog import ScopedToolCatalog
 from agent_toolbox.application.catalog.tool_catalog import ToolCatalog
 from agent_toolbox.application.use_case.invoke_tool_usecase import InvokeToolUseCase
+from agent_toolbox.domain.model.tool_scope import ToolScope
 from tests.agent_toolbox.stubs import Named, StubSandbox
 
 
@@ -51,3 +53,16 @@ async def test_a_published_tool_runs_through_the_use_case(logger) -> None:
     result = await server.call_tool("grafana_search", {"text": "hi"})
 
     assert "grafana_search:hi" in str(result)
+
+
+async def test_a_scope_s_publisher_binds_only_the_scope_s_tools(logger) -> None:
+    catalog = ToolCatalog()
+    scope = ToolScope("observation", ("grafana_*",))
+    view = ScopedToolCatalog(catalog, scope)
+    server = build_mcp_server(name="toolbox-observation", version="1.0.0")
+    binder = ToolBinder(InvokeToolUseCase(view, logger))
+    publisher = McpToolPublisher(server, binder, view, scope=scope)
+
+    publisher.publish(catalog.replace("mcp", [Named("grafana_search"), Named("postgres_sql")]))
+
+    assert set(await listed(server)) == {"grafana_search"}

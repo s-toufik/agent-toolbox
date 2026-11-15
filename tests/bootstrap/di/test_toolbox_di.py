@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from agent_toolbox.adapter.outbound.code.python_tool import ExecutePython
 from agent_toolbox.domain.model.refresh_policy import RefreshPolicy
 from bootstrap.configuration.settings import ProcessSettings
@@ -107,3 +109,60 @@ def test_a_failed_discovery_names_the_errors_inside_the_task_group() -> None:
     )
 
     assert root_causes(group) == "ConnectionError: refused; ValueError: bad schema"
+
+
+def test_the_scopes_come_from_the_operations_on_the_self_connector(tmp_path, monkeypatch) -> None:
+    _set_required_env(monkeypatch, tmp_path)
+    di = make_di()
+
+    scopes = {scope.name: scope for scope in di._scopes}
+
+    assert list(scopes) == [
+        "all",
+        "observation",
+        "analysis",
+        "coding",
+        "security",
+        "kitchen",
+        "travel",
+    ]
+    assert scopes["observation"].patterns == ("grafana_*",)
+    assert scopes["kitchen"].patterns == ()
+    assert "toolbox" not in di._mcp_operation
+
+
+async def test_each_scope_has_its_own_python_executor_describing_only_its_tools(
+    tmp_path, monkeypatch
+) -> None:
+    _set_required_env(monkeypatch, tmp_path)
+    di = make_di(sandbox_tool_access=True, working_directory=tmp_path)
+    scopes = {scope.name: scope for scope in di._scopes}
+
+    coding = await di._scope_tools(scopes["coding"])
+    kitchen = await di._scope_tools(scopes["kitchen"])
+
+    assert [tool.name for tool in coding.tools] == ["python_executor", "file_reader", "file_writer"]
+    assert [tool.name for tool in kitchen.tools] == ["python_executor"]
+    [coding_python] = [tool for tool in coding.tools if tool.name == "python_executor"]
+    [kitchen_python] = [tool for tool in kitchen.tools if tool.name == "python_executor"]
+    assert "file_reader(*, file_path: str" in coding_python.description
+    assert "users_tables(" not in coding_python.description
+    assert "file_reader(" not in kitchen_python.description
+    assert (
+        await kitchen.get("python_executor").run(
+            kitchen.get("python_executor").input_model(code="result = 6 * 7")
+        )
+        is not None
+    )
+
+    await di._stop_factories()
+
+
+def test_a_scope_declared_twice_is_refused(tmp_path, monkeypatch) -> None:
+    _set_required_env(monkeypatch, tmp_path)
+    di = make_di()
+    scope = next(op for op in di._mcp_operations if op.name == "observation")
+    di.__dict__["_mcp_operations"] = (*di._mcp_operations, scope)
+
+    with pytest.raises(ValueError, match="declared twice: observation"):
+        _ = di._scopes

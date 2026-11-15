@@ -3,6 +3,7 @@ from mcp.server.mcpserver import MCPServer
 from agent_toolbox.adapter.inbound.mcp.tool_binder import ToolBinder
 from agent_toolbox.application.port.outbound.tool_lookup_port import ToolLookup
 from agent_toolbox.application.port.outbound.tool_publisher_port import CatalogChange
+from agent_toolbox.domain.model.tool_scope import ALL_TOOLS, ToolScope
 
 
 class McpToolPublisher:
@@ -12,7 +13,9 @@ class McpToolPublisher:
         binder: ToolBinder,
         catalog: ToolLookup,
         refreshed: tuple[str, ...] = (),
+        scope: ToolScope = ALL_TOOLS,
     ) -> None:
+        self._scope = scope
         self._server = server
         self._binder = binder
         self._catalog = catalog
@@ -20,9 +23,11 @@ class McpToolPublisher:
 
     def publish(self, change: CatalogChange) -> None:
         for name in change.removed:
-            self._binder.unbind(self._server, name)
+            if self._scope.includes(name):
+                self._binder.unbind(self._server, name)
         for tool in change.added:
-            self._binder.bind_one(self._server, tool)
+            if self._scope.includes(tool.name):
+                self._binder.bind_one(self._server, tool)
         for name in self._refreshed:
             tool = self._catalog.get(name)
             if tool is not None:
