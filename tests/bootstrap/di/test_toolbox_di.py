@@ -142,7 +142,18 @@ def test_the_scopes_come_from_the_operations_on_the_self_connector(tmp_path, mon
         "travel",
     ]
     assert scopes["observation"].patterns == ("grafana_*",)
-    assert scopes["kitchen"].patterns == ("python_executor",)
+    assert scopes["kitchen"].patterns == (
+        "python_executor",
+        "mongodb_find",
+        "mongodb_aggregate",
+        "mongodb_collection_schema",
+        "mongodb_collection_indexes",
+        "mongodb_list_collections",
+        "postgres_list_schemas",
+        "postgres_list_objects",
+        "postgres_get_object_details",
+        "postgres_execute_sql",
+    )
     assert "toolbox" not in di._mcp_operation
 
 
