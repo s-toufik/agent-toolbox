@@ -28,7 +28,17 @@ operation:
     type: mcp
     connector: ${connector.self}
     parameters:
-      tools: [python_executor]
+      tools:
+        - python_executor
+        - mongodb_find
+        - mongodb_aggregate
+        - mongodb_collection_schema
+        - mongodb_collection_indexes
+        - mongodb_list_collections
+        - postgres_list_schemas
+        - postgres_list_objects
+        - postgres_get_object_details
+        - postgres_execute_sql
   scope_travel:
     name: travel
     type: mcp
