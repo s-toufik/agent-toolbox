@@ -3,20 +3,14 @@ operation:
     name: external_mcp_grafana
     connector: ${connector.external_mcp_grafana}
     type: mcp
-    parameters:
-      prefix: grafana
-      tools: []
+    prefix: grafana
   external_mcp_mongodb:
     name: external_mcp_mongodb
     connector: ${connector.external_mcp_mongodb}
     type: mcp
-    parameters:
-      prefix: mongodb
-      tools: []
+    prefix: mongodb
   external_mcp_postgres:
     name: external_mcp_postgres
     connector: ${connector.external_mcp_postgres}
     type: mcp
-    parameters:
-      prefix: postgres
-      tools: []
+    prefix: postgres

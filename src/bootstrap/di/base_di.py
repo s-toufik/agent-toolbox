@@ -3,7 +3,7 @@ import logging
 from functools import cached_property
 
 from pycraftcore.application_configuration import ApplicationConfiguration
-from pycraftcore.application_configuration.model.connector import TelemetryConnector
+from pycraftcore.application_configuration.model import TelemetryConnector
 from pycraftcore.http.port import AsyncHttpFactory
 from pycraftcore.logger import configure_logging
 from pycraftcore.logger.adapter import StandardLogger

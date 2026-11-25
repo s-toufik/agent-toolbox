@@ -99,7 +99,7 @@ async def test_external_mcp_servers_without_a_url_are_skipped(tmp_path, monkeypa
         "external_mcp_postgres",
     }
     assert di._external_sources == []
-    assert di._mcp_operation["external_mcp_mongodb"].parameters["prefix"] == "mongodb"
+    assert di._mcp_operation["external_mcp_mongodb"].prefix == "mongodb"
 
 
 async def test_external_mcp_servers_take_their_refresh_pace_from_the_configuration(

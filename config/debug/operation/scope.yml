@@ -3,45 +3,39 @@ operation:
     name: observation
     type: mcp
     connector: ${connector.self}
-    parameters:
-      tools: [grafana_*]
+    tools: [grafana_*]
   scope_analysis:
     name: analysis
     type: mcp
     connector: ${connector.self}
-    parameters:
-      tools: [postgres_*, mongodb_*, users_tables, file_reader, file_writer, python_executor]
+    tools: [postgres_*, mongodb_*, users_tables, file_reader, file_writer, python_executor]
   scope_coding:
     name: coding
     type: mcp
     connector: ${connector.self}
-    parameters:
-      tools: [file_reader, file_writer, python_executor]
+    tools: [file_reader, file_writer, python_executor]
   scope_security:
     name: security
     type: mcp
     connector: ${connector.self}
-    parameters:
-      tools: [grafana_*, users_tables]
+    tools: [grafana_*, users_tables]
   scope_kitchen:
     name: kitchen
     type: mcp
     connector: ${connector.self}
-    parameters:
-      tools:
-        - python_executor
-        - mongodb_find
-        - mongodb_aggregate
-        - mongodb_collection_schema
-        - mongodb_collection_indexes
-        - mongodb_list_collections
-        - postgres_list_schemas
-        - postgres_list_objects
-        - postgres_get_object_details
-        - postgres_execute_sql
+    tools:
+      - python_executor
+      - mongodb_find
+      - mongodb_aggregate
+      - mongodb_collection_schema
+      - mongodb_collection_indexes
+      - mongodb_list_collections
+      - postgres_list_schemas
+      - postgres_list_objects
+      - postgres_get_object_details
+      - postgres_execute_sql
   scope_travel:
     name: travel
     type: mcp
     connector: ${connector.self}
-    parameters:
-      tools: [python_executor]
+    tools: [python_executor]

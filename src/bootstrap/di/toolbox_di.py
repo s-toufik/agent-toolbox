@@ -2,11 +2,13 @@ import asyncio
 from collections.abc import Iterable, Mapping
 from functools import cached_property
 from pathlib import Path
-from typing import Any
 
 from pycraftcore.application_configuration.enum import ConnectorType
-from pycraftcore.application_configuration.model.connector import McpConnector
-from pycraftcore.application_configuration.model.operation import DatabaseOperation, McpOperation
+from pycraftcore.application_configuration.model import (
+    DatabaseOperation,
+    McpConnector,
+    McpOperation,
+)
 from pycraftcore.file_handler.adapter import Handler
 from pycraftcore.query_language.adapter import SqlHandlerFactory
 from pycraftcore.repository.adapter import SqliteRepositoryFactory, SqliteSettingsMapper
@@ -76,7 +78,7 @@ class ToolboxDI(BaseDI):
     @cached_property
     def _scopes(self) -> tuple[ToolScope, ...]:
         configured: list[ToolScope] = [
-            ToolScope(operation.name, tuple(operation.parameters.get("tools") or ()))
+            ToolScope(operation.name, operation.listed_tools)
             for operation in self._mcp_operations
             if operation.connector.name == self._self_connector.name
         ]
@@ -143,11 +145,12 @@ class ToolboxDI(BaseDI):
                 self._logging.info(f"External MCP '{short_name}' has no URL, skipping it")
                 continue
             operation: McpOperation | None = operations.get(connector.name)
-            parameters: Mapping[str, Any] = operation.parameters if operation else {}
             provider = McpToolProvider(
                 McpSessionFactory(connector, operation),
-                prefix=str(parameters.get("prefix") or short_name),
-                allowed=list(parameters.get("tools") or []) or None,
+                prefix=(operation.prefix if operation else None) or short_name,
+                allowed=list(operation.listed_tools)
+                if operation and operation.listed_tools
+                else None,
             )
             sources.append(ExternalSource(short_name, provider, refresh_policy(connector)))
         return sources

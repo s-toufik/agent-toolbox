@@ -9,8 +9,7 @@ from mcp.client.sse import sse_client
 from mcp.client.streamable_http import streamable_http_client
 from mcp.shared._stream_protocols import ReadStream, WriteStream
 from mcp.shared.message import SessionMessage
-from pycraftcore.application_configuration.model.connector import McpConnector
-from pycraftcore.application_configuration.model.operation import McpOperation
+from pycraftcore.application_configuration.model import McpConnector, McpOperation
 from pycraftcore.authentication import AuthTyping, BasicAuth, TokenAuth
 from pycraftcore.context import request_id_context
 
@@ -70,5 +69,5 @@ class McpSessionFactory:
     def _operation_headers(self) -> dict[str, str]:
         if self._operation is None:
             return {}
-        headers: dict[str, Any] = self._operation.parameters.get("header") or {}
+        headers: dict[str, str] = self._operation.headers
         return {key: str(value) for key, value in headers.items() if value}
