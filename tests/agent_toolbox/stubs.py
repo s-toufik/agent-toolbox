@@ -1,6 +1,7 @@
-from typing import Any
+from typing import Annotated, Any
 
-from pydantic import BaseModel
+from pycraftcore.mcp import ServedTool
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from agent_toolbox.application.port.outbound.tool_port import Tool
 from agent_toolbox.domain.exception.tool_failure import ToolFailure
@@ -117,3 +118,62 @@ class Named(Tool[EchoInput, EchoOutput]):
 
     async def run(self, arguments: EchoInput) -> EchoOutput:
         return EchoOutput(echoed=f"{self.name}:{arguments.text}")
+
+
+class FindInput(BaseModel):
+    database: str
+    collection: str
+    filter: dict[str, Any] | None = None
+    limit: Annotated[int, Field(ge=1, le=50, description="Most documents to return.")] = 10
+
+    @model_validator(mode="after")
+    def _a_large_read_needs_a_filter(self) -> FindInput:
+        if self.limit > 20 and self.filter is None:
+            raise ValueError("more than 20 documents needs a filter")
+        return self
+
+
+class FindOutput(BaseModel):
+    received: dict[str, Any]
+
+
+class Find(Tool[FindInput, FindOutput]):
+    description = "Find documents in a collection."
+    input_model = FindInput
+    output_model = FindOutput
+
+    def __init__(self, name: str = "mongodb_find") -> None:
+        self.name = name
+        self.calls: list[FindInput] = []
+
+    async def run(self, arguments: FindInput) -> FindOutput:
+        self.calls.append(arguments)
+        return FindOutput(received=arguments.model_dump())
+
+
+class OpenInput(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+
+class Open(Tool[OpenInput, FindOutput]):
+    name = "jira_search"
+    description = "Search issues."
+    input_model = OpenInput
+    output_model = FindOutput
+
+    async def run(self, arguments: OpenInput) -> FindOutput:
+        return FindOutput(received=arguments.model_dump())
+
+
+class RecordingToolServer:
+    def __init__(self) -> None:
+        self.tools: dict[str, ServedTool] = {}
+
+    def add_tool(self, tool: ServedTool) -> None:
+        self.tools[tool.name] = tool
+
+    def remove_tool(self, name: str) -> None:
+        self.tools.pop(name, None)
+
+    async def call(self, name: str, arguments: dict[str, Any]) -> Any:
+        return await self.tools[name].handler(arguments)
