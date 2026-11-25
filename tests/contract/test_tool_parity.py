@@ -6,6 +6,7 @@ import pytest
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from pycraftcore.file_handler.adapter import Handler
+from pycraftcore.mcp_sdk import SdkToolServer, create_server
 from pycraftcore.query_language.adapter import SqlHandlerFactory
 from pycraftcore.runtime.adapter import PythonSafeCodeFactory
 from pycraftcore.runtime.schema import SafeCodeSettings
@@ -17,6 +18,7 @@ from agent_toolbox.adapter.outbound.file.reader_tool import ReadFile
 from agent_toolbox.adapter.outbound.file.writer_tool import WriteFile
 from agent_toolbox.adapter.outbound.sandbox.python_sandbox import PythonSandbox
 from agent_toolbox.adapter.outbound.sql.sql_tool import QueryUsers
+from agent_toolbox.application.catalog.tool_catalog import ToolCatalog
 from agent_toolbox.application.port.outbound.tool_port import Tool
 from agent_toolbox.application.use_case.invoke_tool_usecase import InvokeToolUseCase
 from agent_toolbox.domain.model.working_directory import WorkingDirectory
@@ -47,15 +49,17 @@ def _server(logger, working_directory: Path | None = None) -> MCPServer:
         ReadFile(Handler, toolbox_working_directory),
         WriteFile(Handler, toolbox_working_directory),
     ]
-    bridge = SandboxToolBridge(InvokeToolUseCase(data_tools, logger))
+    bridge = SandboxToolBridge(InvokeToolUseCase(ToolCatalog(data_tools), logger))
     settings = SafeCodeSettings(
         code_timeout=10, working_directory=str(working_directory) if working_directory else None
     )
     sandbox = PythonSandbox(PythonSafeCodeFactory(settings), asyncio.Semaphore(4), bridge.server)
     python = ExecutePython(sandbox, allowed_modules=(), timeout_seconds=10)
 
-    mcp = MCPServer(name="parity")
-    ToolBinder(InvokeToolUseCase([python, *data_tools], logger)).bind(mcp)
+    mcp = create_server(name="parity", version="1.0.0")
+    ToolBinder(InvokeToolUseCase(ToolCatalog([python, *data_tools]), logger)).bind(
+        SdkToolServer(mcp)
+    )
     return mcp
 
 

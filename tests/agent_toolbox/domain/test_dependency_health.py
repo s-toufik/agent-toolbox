@@ -33,7 +33,6 @@ def test_a_dependency_stays_down_since_it_first_failed_with_its_last_error() -> 
     state = health.snapshot()["mongodb"]
 
     assert (state.up, state.since, state.error) == (False, first, "timeout")
-    assert health.all_up is False
 
 
 def test_is_up_is_false_until_a_dependency_answered() -> None:

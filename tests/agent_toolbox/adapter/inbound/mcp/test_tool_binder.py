@@ -1,44 +1,50 @@
 import pytest
-from mcp.server.mcpserver import MCPServer
-from mcp.server.mcpserver.exceptions import ToolError
+from pycraftcore.mcp import ToolCallError
 
 from agent_toolbox.adapter.inbound.mcp.tool_binder import ToolBinder
+from agent_toolbox.application.catalog.tool_catalog import ToolCatalog
 from agent_toolbox.application.use_case.invoke_tool_usecase import InvokeToolUseCase
 from agent_toolbox.domain.exception.tool_failure import ToolFailure
-from tests.agent_toolbox.stubs import Echo, EchoInput, EchoOutput
+from tests.agent_toolbox.stubs import Echo, EchoInput, EchoOutput, RecordingToolServer
 
 
-def _server(logger, tool: Echo) -> MCPServer:
-    server = MCPServer(name="test")
-    ToolBinder(InvokeToolUseCase([tool], logger)).bind(server)
+def _server(logger, tool: Echo) -> RecordingToolServer:
+    server = RecordingToolServer()
+    ToolBinder(InvokeToolUseCase(ToolCatalog([tool]), logger)).bind(server)
     return server
 
 
 def test_bind_returns_the_bound_tool_names(logger) -> None:
-    binder = ToolBinder(InvokeToolUseCase([Echo()], logger))
+    binder = ToolBinder(InvokeToolUseCase(ToolCatalog([Echo()]), logger))
 
-    assert binder.bind(MCPServer(name="test")) == ["echo"]
-
-
-async def test_schemas_and_description_come_from_the_tool_models(logger) -> None:
-    [listed] = await _server(logger, Echo()).list_tools()
-
-    assert listed.name == "echo"
-    assert listed.description == "Repeat text.\n\nReturns: {echoed: str}"
-    assert listed.input_schema["properties"].keys() == EchoInput.model_fields.keys()
-    assert listed.input_schema["required"] == ["text"]
-    assert listed.output_schema == EchoOutput.model_json_schema()
+    assert binder.bind(RecordingToolServer()) == ["echo"]
 
 
-async def test_structured_content_is_the_output_model_without_a_wrapper(logger) -> None:
-    result = await _server(logger, Echo()).call_tool("echo", {"text": "ab", "times": 2})
+def test_the_served_tool_carries_the_tool_models_and_described_text(logger) -> None:
+    served = _server(logger, Echo()).tools["echo"]
 
-    assert result.structured_content == {"echoed": "abab"}
-    assert not result.is_error
+    assert served.name == "echo"
+    assert served.description == "Repeat text.\n\nReturns: {echoed: str}"
+    assert served.input_model is EchoInput
+    assert served.output_model is EchoOutput
 
 
-async def test_tool_failures_keep_their_message(logger) -> None:
+async def test_a_call_returns_the_output_model_without_a_wrapper(logger) -> None:
+    result = await _server(logger, Echo()).call("echo", {"text": "ab", "times": 2})
+
+    assert result == {"echoed": "abab"}
+
+
+async def test_tool_failures_become_tool_call_errors_with_their_message(logger) -> None:
     server = _server(logger, Echo(error=ToolFailure("File not found.")))
 
-    with pytest.raises(ToolError, match="^Error executing tool echo: File not found.$"):
-        await server.call_tool("echo", {"text": "a"})
+    with pytest.raises(ToolCallError, match="^File not found.$"):
+        await server.call("echo", {"text": "a"})
+
+
+def test_unbind_removes_the_tool(logger) -> None:
+    server = _server(logger, Echo())
+
+    ToolBinder.unbind(server, "echo")
+
+    assert server.tools == {}

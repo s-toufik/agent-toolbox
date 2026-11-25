@@ -1,6 +1,8 @@
 import asyncio
 import contextlib
 
+from pycraftcore.application_configuration.model import McpRefresh
+
 from agent_toolbox.application.catalog.tool_catalog import ToolCatalog
 from agent_toolbox.application.port.outbound.tool_publisher_port import CatalogChange
 from agent_toolbox.application.use_case.reconcile_external_tools import (
@@ -8,7 +10,6 @@ from agent_toolbox.application.use_case.reconcile_external_tools import (
     ReconcileExternalTools,
 )
 from agent_toolbox.domain.model.dependency_health import DependencyHealth
-from agent_toolbox.domain.model.refresh_policy import RefreshPolicy
 from tests.agent_toolbox.stubs import Named
 
 
@@ -46,11 +47,13 @@ async def test_a_server_down_at_start_gets_its_tools_once_it_is_back(logger) -> 
     grafana = Server("grafana_search", up=False)
     use_case, catalog, health, publisher = reconciler(logger, grafana=grafana)
 
-    assert await use_case.reconcile() is False
+    await use_case.reconcile()
+    assert not health.is_up("grafana")
     assert [tool.name for tool in catalog.tools] == ["file_reader"]
 
     grafana.up = True
-    assert await use_case.reconcile() is True
+    await use_case.reconcile()
+    assert health.is_up("grafana")
 
     assert [tool.name for tool in catalog.tools] == ["file_reader", "grafana_search"]
     assert [tool.name for tool in publisher.changes[0].added] == ["grafana_search"]
@@ -131,8 +134,8 @@ async def test_each_server_keeps_its_own_pace(logger) -> None:
     health = DependencyHealth()
     use_case = ReconcileExternalTools(
         [
-            ExternalSource("grafana", Server("grafana_search", up=False), RefreshPolicy(60, 7, 28)),
-            ExternalSource("mongodb", Server("mongodb_find"), RefreshPolicy(33, 5, 60)),
+            ExternalSource("grafana", Server("grafana_search", up=False), McpRefresh(60, 7, 28)),
+            ExternalSource("mongodb", Server("mongodb_find"), McpRefresh(33, 5, 60)),
         ],
         ToolCatalog(),
         health,

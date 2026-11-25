@@ -1,11 +1,10 @@
 import traceback
-from collections.abc import Iterable, Mapping
+from collections.abc import Mapping
 from typing import Any
 
 from pycraftcore.logger.port import Logger
 from pydantic import BaseModel, ValidationError
 
-from agent_toolbox.application.catalog.tool_catalog import ToolCatalog
 from agent_toolbox.application.port.outbound.tool_lookup_port import ToolLookup
 from agent_toolbox.application.port.outbound.tool_port import Tool
 from agent_toolbox.domain.exception.tool_failure import ToolFailure
@@ -13,8 +12,8 @@ from agent_toolbox.domain.exception.unknown_tool_exception import UnknownToolExc
 
 
 class InvokeToolUseCase:
-    def __init__(self, tools: ToolLookup | Iterable[Tool], logger: Logger) -> None:
-        self._tools: ToolLookup = tools if isinstance(tools, ToolLookup) else ToolCatalog(tools)
+    def __init__(self, tools: ToolLookup, logger: Logger) -> None:
+        self._tools = tools
         self._logger = logger
 
     @property

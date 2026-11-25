@@ -5,14 +5,13 @@ from pycraftcore.runtime.adapter import HostBridgeServer
 
 from agent_toolbox.application.port.inbound.invoke_tool_port import InvokeToolPort
 
+MAX_CALLS: int = 200
+CALL_TIMEOUT_SECONDS: float = 30.0
+
 
 class SandboxToolBridge:
-    def __init__(
-        self, invoker: InvokeToolPort, max_calls: int = 200, call_timeout: float = 30.0
-    ) -> None:
+    def __init__(self, invoker: InvokeToolPort) -> None:
         self._invoker = invoker
-        self._max_calls = max_calls
-        self._call_timeout = call_timeout
 
     @property
     def tool_names(self) -> tuple[str, ...]:
@@ -30,5 +29,5 @@ class SandboxToolBridge:
                 request_id_context.reset(token)
 
         return HostBridgeServer(
-            handle, self.tool_names, max_calls=self._max_calls, call_timeout=self._call_timeout
+            handle, self.tool_names, max_calls=MAX_CALLS, call_timeout=CALL_TIMEOUT_SECONDS
         )

@@ -1,9 +1,8 @@
-from typing import Protocol, runtime_checkable
+from typing import Protocol
 
 from agent_toolbox.application.port.outbound.tool_port import Tool
 
 
-@runtime_checkable
 class ToolLookup(Protocol):
     @property
     def tools(self) -> tuple[Tool, ...]: ...

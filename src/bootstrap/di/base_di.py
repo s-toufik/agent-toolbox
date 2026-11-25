@@ -4,7 +4,6 @@ from functools import cached_property
 
 from pycraftcore.application_configuration import ApplicationConfiguration
 from pycraftcore.application_configuration.model import TelemetryConnector
-from pycraftcore.http.port import AsyncHttpFactory
 from pycraftcore.logger import configure_logging
 from pycraftcore.logger.adapter import StandardLogger
 from pycraftcore.logger.port import Logger
@@ -13,26 +12,24 @@ from pycraftcore.telemetry.adapter import OpenTelemetryProvider
 from pycraftcore.telemetry.port import TelemetryProvider
 
 from bootstrap.configuration.application_configuration import SetApplicationConfiguration
-from bootstrap.configuration.application_logger import create_logger
 from bootstrap.configuration.settings import ProcessSettings
 
 
 class BaseDI:
     def __init__(self, settings: ProcessSettings) -> None:
         self._settings = settings
-        self._clients: list[AsyncHttpFactory] = []
         self._repositories: list[AsyncRepositoryFactory] = []
         self._telemetry_log_handler: logging.Handler | None = None
 
     @cached_property
     def _configuration(self) -> ApplicationConfiguration:
-        configuration = SetApplicationConfiguration(self._settings)()
+        configuration = SetApplicationConfiguration(self._settings, self._logging)()
         configure_logging(configuration.log)
         return configuration
 
     @cached_property
     def _logging(self) -> Logger:
-        return create_logger(StandardLogger())
+        return StandardLogger()
 
     @cached_property
     def _telemetry_provider(self) -> TelemetryProvider:
@@ -48,26 +45,11 @@ class BaseDI:
         logging.getLogger().addHandler(self._telemetry_log_handler)
         return provider
 
-    def _register_client(self, client: AsyncHttpFactory) -> AsyncHttpFactory:
-        self._clients.append(client)
-        return client
-
     def _register_repository(self, repository: AsyncRepositoryFactory) -> AsyncRepositoryFactory:
         self._repositories.append(repository)
         return repository
 
-    async def _start_factories(self) -> None:
-        for client in self._clients:
-            if hasattr(client, "start"):
-                await client.start()
-        for repository in self._repositories:
-            if hasattr(repository, "connect"):
-                await repository.connect()
-
     async def _stop_factories(self) -> None:
-        for client in self._clients:
-            if hasattr(client, "close"):
-                await client.close()
         for repository in self._repositories:
             if hasattr(repository, "disconnect"):
                 await repository.disconnect()

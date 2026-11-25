@@ -1,63 +1,8 @@
-from pathlib import Path
-
-import pytest
-from mcp.server.mcpserver import MCPServer
-from starlette.applications import Starlette
-from starlette.testclient import TestClient
-
-from agent_toolbox.adapter.inbound.mcp.actuator import ActuatorRouter
 from agent_toolbox.application.port.outbound.tool_provider_port import ExternalSource
-from bootstrap.configuration.settings import ProcessSettings
 from bootstrap.container.toolbox_container import ToolboxContainer
-from tests.agent_toolbox.stubs import Named
+from tests.agent_toolbox.stubs import Named, RecordingToolServer
 
-REAL_CONFIG_DIR = Path(__file__).resolve().parents[3] / "config"
-
-
-@pytest.fixture(autouse=True)
-def _base_env(monkeypatch, tmp_path):
-    monkeypatch.setenv("USER_DB_HOST", str(tmp_path))
-    monkeypatch.setenv("USER_DB_NAME", "users")
-    monkeypatch.setenv("CHECKPOINT_DB_HOST", str(tmp_path))
-    monkeypatch.setenv("CHECKPOINT_DB_NAME", "checkpoint")
-    monkeypatch.setenv("TOOLBOX_URL", "http://127.0.0.1:8001/mcp")
-
-
-def make_settings() -> ProcessSettings:
-    return ProcessSettings(
-        role="toolbox",
-        environment="debug",
-        configuration_directory=REAL_CONFIG_DIR,
-    )
-
-
-def test_logging_and_application_configuration_expose_the_di_internals() -> None:
-    container = ToolboxContainer(make_settings())
-
-    assert container.logging is container._logging
-    assert container.application_configuration is container._configuration
-
-
-def test_mcp_server_is_built_once_and_cached() -> None:
-    container = ToolboxContainer(make_settings())
-
-    assert isinstance(container.mcp_server, MCPServer)
-    assert container.mcp_server is container.mcp_server
-
-
-def test_asgi_app_is_a_starlette_application() -> None:
-    container = ToolboxContainer(make_settings())
-
-    assert isinstance(container.asgi_app, Starlette)
-
-
-async def test_boot_can_be_called_directly_without_the_asgi_lifespan() -> None:
-    container = ToolboxContainer(make_settings())
-
-    await container.boot()  # must not raise; registers real tools on container.mcp_server
-
-    assert await container.mcp_server.list_tools()
-    await container.stop()
+INTERNAL_TOOLS = {"users_tables", "python_executor", "file_reader", "file_writer"}
 
 
 class FlakyServer:
@@ -70,49 +15,66 @@ class FlakyServer:
         return [Named("grafana_search")]
 
 
-async def test_an_mcp_server_that_starts_after_the_toolbox_joins_it_without_a_restart() -> None:
+def serving(container: ToolboxContainer, *scopes: str) -> dict[str, RecordingToolServer]:
+    servers = {
+        scope.name: RecordingToolServer() for scope in container.scopes if scope.name in scopes
+    }
+    container.serve(
+        {scope: servers[scope.name] for scope in container.scopes if scope.name in scopes}
+    )
+    return servers
+
+
+async def test_boot_binds_each_served_scope_s_tools(make_settings) -> None:
     container = ToolboxContainer(make_settings())
-    grafana = FlakyServer()
-    container.__dict__["_external_sources"] = [ExternalSource("grafana", grafana)]
+    servers = serving(container, "all", "coding")
+
     await container.boot()
-    before = {tool.name for tool in await container.mcp_server.list_tools()}
 
-    grafana.up = True
-    await container._external_tools_reconciler.reconcile()
-
-    after = {tool.name for tool in await container.mcp_server.list_tools()}
-    assert "grafana_search" not in before
-    assert "grafana_search" in after
-    assert container._dependency_health.snapshot()["grafana"].up
+    assert set(servers["all"].tools) == INTERNAL_TOOLS
+    assert set(servers["coding"].tools) == {"python_executor", "file_reader", "file_writer"}
     await container.stop()
 
 
-async def test_entering_the_asgi_app_boots_real_tools_and_health_reports_ok() -> None:
+async def test_an_mcp_server_that_starts_after_the_toolbox_joins_it_without_a_restart(
+    make_settings,
+) -> None:
     container = ToolboxContainer(make_settings())
-
-    with TestClient(container.asgi_app, base_url="http://127.0.0.1:8001") as client:
-        response = client.get(f"{ActuatorRouter.PREFIX}/health/readiness")
-
-    assert response.status_code == 200
-    assert response.json() == {"status": "UP"}
-    assert {tool.name for tool in await container.mcp_server.list_tools()} == {
-        "users_tables",
-        "python_executor",
-        "file_reader",
-        "file_writer",
-    }
-
-
-async def test_stop_after_boot_does_not_raise() -> None:
-    container = ToolboxContainer(make_settings())
+    grafana = FlakyServer()
+    container._external_mcp.__dict__["sources"] = [ExternalSource("grafana", grafana)]
+    servers = serving(container, "all", "observation")
     await container.boot()
+    before = set(servers["observation"].tools)
 
-    await container.stop()  # must not raise
+    grafana.up = True
+    await container._external_mcp.reconciler.reconcile()
+
+    assert before == set()
+    assert set(servers["observation"].tools) == {"grafana_search"}
+    assert "grafana_search" in servers["all"].tools
+    await container.stop()
 
 
-async def test_booting_twice_runs_one_reconcile_loop() -> None:
+async def test_the_actuator_is_ready_once_booted_and_reports_the_mcp_servers(make_settings) -> None:
+    container = ToolboxContainer(make_settings(deployment_environment="homelab"))
+    container._external_mcp.__dict__["sources"] = [ExternalSource("grafana", FlakyServer())]
+    serving(container, "all")
+
+    before = container.actuator.readiness().status
+    await container.boot()
+    health = container.actuator.health()
+
+    assert (before, container.actuator.readiness().status) == ("DOWN", "UP")
+    assert container.actuator.info().environment == "homelab"
+    assert health.dependencies is not None
+    assert health.dependencies["grafana"].status == "DOWN"
+    assert health.dependencies["grafana"].error == "refused"
+    await container.stop()
+
+
+async def test_booting_twice_runs_one_reconcile_loop(make_settings) -> None:
     container = ToolboxContainer(make_settings())
-    container.__dict__["_external_sources"] = [ExternalSource("grafana", FlakyServer())]
+    container._external_mcp.__dict__["sources"] = [ExternalSource("grafana", FlakyServer())]
 
     await container.boot()
     first = container._reconciling

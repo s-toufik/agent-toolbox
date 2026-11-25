@@ -1,42 +1,17 @@
-from pathlib import Path
+from agent_toolbox.application.use_case.invoke_tool_usecase import InvokeToolUseCase
+from agent_toolbox.domain.model.tool_scope import ToolScope
 
-import pytest
-
-from agent_toolbox.adapter.outbound.code.python_tool import ExecutePython
-from agent_toolbox.domain.model.refresh_policy import RefreshPolicy
-from bootstrap.configuration.settings import ProcessSettings
-from bootstrap.di.toolbox_di import ToolboxDI, root_causes
-
-REAL_CONFIG_DIR = Path(__file__).resolve().parents[3] / "config"
 TOOL_NAMES = {"users_tables", "python_executor", "file_reader", "file_writer"}
 
 
-def make_di(sandbox_tool_access: bool = False, working_directory: Path | None = None) -> ToolboxDI:
-    return ToolboxDI(
-        ProcessSettings(
-            role="toolbox",
-            environment="debug",
-            configuration_directory=REAL_CONFIG_DIR,
-            working_directory=working_directory,
-            sandbox_tool_access=sandbox_tool_access,
-        )
-    )
+def scope_named(di, name: str) -> ToolScope:
+    return next(scope for scope in di._scopes.declared if scope.name == name)
 
 
-def _set_required_env(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setenv("USER_DB_HOST", str(tmp_path))
-    monkeypatch.setenv("USER_DB_NAME", "users")
-    monkeypatch.setenv("CHECKPOINT_DB_HOST", str(tmp_path))
-    monkeypatch.setenv("CHECKPOINT_DB_NAME", "checkpoint")
-
-
-async def test_use_case_serves_every_tool_and_connects_the_sqlite_repository(
-    tmp_path, monkeypatch
-) -> None:
-    _set_required_env(monkeypatch, tmp_path)
+async def test_use_case_serves_every_tool_and_connects_the_sqlite_repository(make_di) -> None:
     di = make_di()
 
-    use_case = await di._invoke_tool_use_case()
+    use_case = InvokeToolUseCase(await di._scope_tools(), di._logging)
 
     assert {tool.name for tool in use_case.tools} == TOOL_NAMES
     assert len(di._repositories) == 1
@@ -49,13 +24,11 @@ async def test_use_case_serves_every_tool_and_connects_the_sqlite_repository(
     await di._stop_factories()
 
 
-async def test_a_scope_without_python_executor_in_its_tools_has_none(tmp_path, monkeypatch) -> None:
-    _set_required_env(monkeypatch, tmp_path)
+async def test_a_scope_without_python_executor_in_its_tools_has_none(make_di, tmp_path) -> None:
     di = make_di(sandbox_tool_access=True, working_directory=tmp_path)
-    scopes = {scope.name: scope for scope in di._scopes}
 
-    observation = await di._scope_tools(scopes["observation"])
-    everything = await di._scope_tools(scopes["all"])
+    observation = await di._scope_tools(scope_named(di, "observation"))
+    everything = await di._scope_tools(scope_named(di, "all"))
 
     assert "python_executor" not in [tool.name for tool in observation.tools]
     assert observation.get("python_executor") is None
@@ -64,21 +37,10 @@ async def test_a_scope_without_python_executor_in_its_tools_has_none(tmp_path, m
     await di._stop_factories()
 
 
-def test_python_tool_has_no_tool_functions_without_sandbox_tool_access(tmp_path) -> None:
-    tool: ExecutePython = make_di()._execute_python([])
-
-    assert "ToolError" not in tool.description
-
-
-async def test_python_tool_lists_the_data_tools_with_sandbox_tool_access(
-    tmp_path, monkeypatch
-) -> None:
-    _set_required_env(monkeypatch, tmp_path)
+async def test_python_tool_lists_the_data_tools_with_sandbox_tool_access(make_di, tmp_path) -> None:
     di = make_di(sandbox_tool_access=True, working_directory=tmp_path)
 
-    [python] = [
-        tool for tool in (await di._invoke_tool_use_case()).tools if tool.name == "python_executor"
-    ]
+    [python] = [tool for tool in (await di._scope_tools()).tools if tool.name == "python_executor"]
 
     assert "file_reader(*, file_path: str" in python.description
     assert "users_tables(*, query: str, dialect: str = 'sqlite') -> {rows:" in python.description
@@ -87,85 +49,13 @@ async def test_python_tool_lists_the_data_tools_with_sandbox_tool_access(
     await di._stop_factories()
 
 
-async def test_external_mcp_servers_without_a_url_are_skipped(tmp_path, monkeypatch) -> None:
-    _set_required_env(monkeypatch, tmp_path)
-    for variable in ("GRAFANA_MCP_URL", "MONGODB_MCP_URL", "POSTGRES_MCP_URL"):
-        monkeypatch.delenv(variable, raising=False)
-    di = make_di()
-
-    assert set(di._external_mcp_connectors) == {
-        "external_mcp_grafana",
-        "external_mcp_mongodb",
-        "external_mcp_postgres",
-    }
-    assert di._external_sources == []
-    assert di._mcp_operation["external_mcp_mongodb"].prefix == "mongodb"
-
-
-async def test_external_mcp_servers_take_their_refresh_pace_from_the_configuration(
-    tmp_path, monkeypatch
-) -> None:
-    _set_required_env(monkeypatch, tmp_path)
-    monkeypatch.setenv("GRAFANA_MCP_URL", "http://grafana-mcp:8000/mcp")
-    monkeypatch.setenv("MCP_REFRESH_INTERVAL", "120")
-    monkeypatch.setenv("MCP_RETRY_DELAY", "2")
-    di = make_di()
-
-    [grafana] = di._external_sources
-
-    assert grafana.name == "grafana"
-    assert grafana.policy == RefreshPolicy(interval=120, retry_delay=2, max_retry_delay=60)
-
-
-def test_a_failed_discovery_names_the_errors_inside_the_task_group() -> None:
-    group = ExceptionGroup(
-        "unhandled errors in a TaskGroup",
-        [ConnectionError("refused"), ExceptionGroup("inner", [ValueError("bad schema")])],
-    )
-
-    assert root_causes(group) == "ConnectionError: refused; ValueError: bad schema"
-
-
-def test_the_scopes_come_from_the_operations_on_the_self_connector(tmp_path, monkeypatch) -> None:
-    _set_required_env(monkeypatch, tmp_path)
-    di = make_di()
-
-    scopes = {scope.name: scope for scope in di._scopes}
-
-    assert list(scopes) == [
-        "all",
-        "observation",
-        "analysis",
-        "coding",
-        "security",
-        "kitchen",
-        "travel",
-    ]
-    assert scopes["observation"].patterns == ("grafana_*",)
-    assert scopes["kitchen"].patterns == (
-        "python_executor",
-        "mongodb_find",
-        "mongodb_aggregate",
-        "mongodb_collection_schema",
-        "mongodb_collection_indexes",
-        "mongodb_list_collections",
-        "postgres_list_schemas",
-        "postgres_list_objects",
-        "postgres_get_object_details",
-        "postgres_execute_sql",
-    )
-    assert "toolbox" not in di._mcp_operation
-
-
 async def test_each_scope_that_lists_python_executor_has_its_own_describing_only_its_tools(
-    tmp_path, monkeypatch
+    make_di, tmp_path
 ) -> None:
-    _set_required_env(monkeypatch, tmp_path)
     di = make_di(sandbox_tool_access=True, working_directory=tmp_path)
-    scopes = {scope.name: scope for scope in di._scopes}
 
-    coding = await di._scope_tools(scopes["coding"])
-    kitchen = await di._scope_tools(scopes["kitchen"])
+    coding = await di._scope_tools(scope_named(di, "coding"))
+    kitchen = await di._scope_tools(scope_named(di, "kitchen"))
 
     assert [tool.name for tool in coding.tools] == ["python_executor", "file_reader", "file_writer"]
     assert [tool.name for tool in kitchen.tools] == ["python_executor"]
@@ -184,11 +74,17 @@ async def test_each_scope_that_lists_python_executor_has_its_own_describing_only
     await di._stop_factories()
 
 
-def test_a_scope_declared_twice_is_refused(tmp_path, monkeypatch) -> None:
-    _set_required_env(monkeypatch, tmp_path)
+async def test_without_its_mcp_servers_the_kitchen_scope_boots_with_warnings(
+    make_di, without_external_mcp, monkeypatch
+) -> None:
     di = make_di()
-    scope = next(op for op in di._mcp_operations if op.name == "observation")
-    di.__dict__["_mcp_operations"] = (*di._mcp_operations, scope)
+    kitchen: ToolScope = scope_named(di, "kitchen")
+    warnings: list[str] = []
+    monkeypatch.setattr(di._logging, "warning", warnings.append)
 
-    with pytest.raises(ValueError, match="declared twice: observation"):
-        _ = di._scopes
+    tools = await di._scope_tools(kitchen)
+
+    assert [tool.name for tool in tools.tools] == ["python_executor"]
+    assert len(warnings) == len(kitchen.aliases)
+
+    await di._stop_factories()

@@ -1,54 +1,35 @@
 from typing import Any
 
-from mcp.types import CallToolResult, TextContent
+from pycraftcore.mcp import CallResult, McpClient, McpUnavailableException, RemoteTool
+from pycraftcore.mcp.adapter import model_from_schema
 from pydantic import BaseModel
 
-from agent_toolbox.adapter.outbound.mcp.errors import root_causes
-from agent_toolbox.adapter.outbound.mcp.schema_model import model_from_schema
-from agent_toolbox.adapter.outbound.mcp.session_factory import McpSessionFactory
 from agent_toolbox.application.port.outbound.tool_port import Tool
 from agent_toolbox.domain.exception.tool_failure import ToolFailure
 
 
 class McpBackedTool(Tool[BaseModel, BaseModel]):
-    def __init__(
-        self,
-        session_factory: McpSessionFactory,
-        name: str,
-        description: str,
-        input_schema: dict[str, Any] | None,
-        output_schema: dict[str, Any] | None,
-        remote_name: str | None = None,
-    ) -> None:
-        self._session_factory = session_factory
+    def __init__(self, client: McpClient, remote: RemoteTool, name: str) -> None:
+        self._client = client
+        self.remote_name = remote.name
         self.name = name
-        self.remote_name = remote_name or name
-        self.description = description
-        self.input_model = model_from_schema(f"{name}_input", input_schema)
-        self.output_model = model_from_schema(f"{name}_output", output_schema)
+        self.description = remote.description
+        self.input_model = model_from_schema(f"{name}_input", remote.input_schema)
+        self.output_model = model_from_schema(f"{name}_output", remote.output_schema)
 
     async def run(self, arguments: BaseModel) -> BaseModel:
         try:
-            async with self._session_factory.session() as session:
-                result: CallToolResult = await session.call_tool(
-                    self.remote_name, arguments.model_dump(exclude_none=True)
-                )
-        except Exception as exception:
+            result: CallResult = await self._client.call_tool(
+                self.remote_name, arguments.model_dump(exclude_unset=True)
+            )
+        except McpUnavailableException as error:
             raise ToolFailure(
                 f"MCP call '{self.remote_name}' failed, its server may be down or restarting; "
-                f"try again later: {root_causes(exception)}"
-            ) from exception
+                f"try again later: {error}"
+            ) from error
         if result.is_error:
-            raise ToolFailure(_stringify(result.content))
+            raise ToolFailure(result.text)
         payload: Any = (
-            result.structured_content
-            if result.structured_content is not None
-            else {"result": _stringify(result.content)}
+            result.structured if result.structured is not None else {"result": result.text}
         )
         return self.output_model.model_validate(payload)
-
-
-def _stringify(content: list[Any]) -> str:
-    return "\n".join(
-        block.text if isinstance(block, TextContent) else str(block) for block in content
-    )

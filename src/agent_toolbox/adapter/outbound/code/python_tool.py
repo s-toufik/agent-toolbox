@@ -19,16 +19,13 @@ class ExecutePython(Tool[ExecutePythonInput, ExecutePythonOutput]):
         allowed_modules: Iterable[str],
         timeout_seconds: int,
         working_directory: str | None = None,
-        tool_signatures: Iterable[str] = (),
-        signatures: Callable[[], Iterable[str]] | None = None,
+        signatures: Callable[[], Iterable[str]] = tuple,
     ) -> None:
         self._sandbox = sandbox
         self._allowed_modules = sorted(allowed_modules)
         self._timeout_seconds = timeout_seconds
         self._working_directory = working_directory
-        self._tool_signatures: Callable[[], Iterable[str]] = signatures or _fixed(
-            tuple(tool_signatures)
-        )
+        self._tool_signatures = signatures
 
     @property
     def description(self) -> str:
@@ -49,10 +46,6 @@ class ExecutePython(Tool[ExecutePythonInput, ExecutePythonOutput]):
 
         run: SandboxRun = await self._sandbox.run(arguments.code)
         return ExecutePythonOutput(result_type=run.type_name, result=run.value, stdout=run.printed)
-
-
-def _fixed(signatures: tuple[str, ...]) -> Callable[[], tuple[str, ...]]:
-    return lambda: signatures
 
 
 def _description(

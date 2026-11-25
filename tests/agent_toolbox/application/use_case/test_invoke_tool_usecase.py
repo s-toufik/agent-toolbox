@@ -1,5 +1,6 @@
 import pytest
 
+from agent_toolbox.application.catalog.tool_catalog import ToolCatalog
 from agent_toolbox.application.use_case.invoke_tool_usecase import InvokeToolUseCase
 from agent_toolbox.domain.exception.tool_failure import ToolFailure
 from agent_toolbox.domain.exception.unknown_tool_exception import UnknownToolException
@@ -7,7 +8,7 @@ from tests.agent_toolbox.stubs import Echo
 
 
 async def test_returns_the_output_model_as_json_ready_data(logger) -> None:
-    use_case = InvokeToolUseCase([Echo()], logger)
+    use_case = InvokeToolUseCase(ToolCatalog([Echo()]), logger)
 
     output = await use_case.invoke("echo", {"text": "ab", "times": 2})
 
@@ -16,20 +17,20 @@ async def test_returns_the_output_model_as_json_ready_data(logger) -> None:
 
 
 async def test_none_arguments_fall_back_to_the_model_defaults(logger) -> None:
-    use_case = InvokeToolUseCase([Echo()], logger)
+    use_case = InvokeToolUseCase(ToolCatalog([Echo()]), logger)
 
     assert await use_case.invoke("echo", {"text": "a", "times": None}) == {"echoed": "a"}
 
 
 async def test_unknown_tool_is_a_tool_failure(logger) -> None:
-    use_case = InvokeToolUseCase([Echo()], logger)
+    use_case = InvokeToolUseCase(ToolCatalog([Echo()]), logger)
 
     with pytest.raises(UnknownToolException, match="Unknown tool: 'nope'."):
         await use_case.invoke("nope", {})
 
 
 async def test_invalid_arguments_name_every_problem(logger) -> None:
-    use_case = InvokeToolUseCase([Echo()], logger)
+    use_case = InvokeToolUseCase(ToolCatalog([Echo()]), logger)
 
     with pytest.raises(ToolFailure) as failure:
         await use_case.invoke("echo", {"times": "many"})
@@ -41,7 +42,7 @@ async def test_invalid_arguments_name_every_problem(logger) -> None:
 
 
 async def test_expected_failures_pass_through_and_are_logged_as_warnings(logger) -> None:
-    use_case = InvokeToolUseCase([Echo(error=ToolFailure("File not found."))], logger)
+    use_case = InvokeToolUseCase(ToolCatalog([Echo(error=ToolFailure("File not found."))]), logger)
 
     with pytest.raises(ToolFailure, match="^File not found.$"):
         await use_case.invoke("echo", {"text": "a"})
@@ -50,7 +51,7 @@ async def test_expected_failures_pass_through_and_are_logged_as_warnings(logger)
 
 
 async def test_crashes_become_tool_failures_and_are_logged_with_a_traceback(logger) -> None:
-    use_case = InvokeToolUseCase([Echo(error=RuntimeError("boom"))], logger)
+    use_case = InvokeToolUseCase(ToolCatalog([Echo(error=RuntimeError("boom"))]), logger)
 
     with pytest.raises(ToolFailure, match="^Tool execution failed: boom$"):
         await use_case.invoke("echo", {"text": "a"})
@@ -62,4 +63,4 @@ async def test_crashes_become_tool_failures_and_are_logged_with_a_traceback(logg
 def test_exposes_its_tools(logger) -> None:
     echo = Echo()
 
-    assert InvokeToolUseCase([echo], logger).tools == (echo,)
+    assert InvokeToolUseCase(ToolCatalog([echo]), logger).tools == (echo,)

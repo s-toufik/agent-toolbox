@@ -4,11 +4,13 @@ operation:
     connector: ${connector.external_mcp_grafana}
     type: mcp
     prefix: grafana
+
   external_mcp_mongodb:
     name: external_mcp_mongodb
     connector: ${connector.external_mcp_mongodb}
     type: mcp
     prefix: mongodb
+
   external_mcp_postgres:
     name: external_mcp_postgres
     connector: ${connector.external_mcp_postgres}

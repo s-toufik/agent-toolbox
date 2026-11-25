@@ -1,4 +1,4 @@
-from mcp.server.mcpserver import MCPServer
+from pycraftcore.mcp import ToolServer
 
 from agent_toolbox.adapter.inbound.mcp.tool_binder import ToolBinder
 from agent_toolbox.application.port.outbound.tool_lookup_port import ToolLookup
@@ -9,7 +9,7 @@ from agent_toolbox.domain.model.tool_scope import ALL_TOOLS, ToolScope
 class McpToolPublisher:
     def __init__(
         self,
-        server: MCPServer,
+        server: ToolServer,
         binder: ToolBinder,
         catalog: ToolLookup,
         refreshed: tuple[str, ...] = (),
@@ -28,8 +28,15 @@ class McpToolPublisher:
         for tool in change.added:
             if self._scope.includes(tool.name):
                 self._binder.bind_one(self._server, tool)
+        changed: set[str] = {*change.removed, *(tool.name for tool in change.added)}
+        for alias in self._scope.aliases:
+            if alias.target in changed:
+                self._rebind(alias.name)
         for name in self._refreshed:
-            tool = self._catalog.get(name)
-            if tool is not None:
-                self._binder.unbind(self._server, name)
-                self._binder.bind_one(self._server, tool)
+            self._rebind(name)
+
+    def _rebind(self, name: str) -> None:
+        self._binder.unbind(self._server, name)
+        tool = self._catalog.get(name)
+        if tool is not None:
+            self._binder.bind_one(self._server, tool)
