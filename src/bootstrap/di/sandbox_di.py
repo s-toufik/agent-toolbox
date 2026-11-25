@@ -6,7 +6,6 @@ from pycraftcore.runtime.adapter.python.python_runner_template import PYTHON_ALL
 from pycraftcore.runtime.schema import SafeCodeSettings
 
 from agent_toolbox.adapter.inbound.sandbox.tool_bridge import SandboxToolBridge
-from agent_toolbox.adapter.inbound.tool_text import python_stub
 from agent_toolbox.adapter.outbound.code.python_tool import ExecutePython
 from agent_toolbox.adapter.outbound.sandbox.python_sandbox import PythonSandbox
 from agent_toolbox.application.port.outbound.tool_lookup_port import ToolLookup
@@ -49,5 +48,5 @@ class SandboxDI:
             allowed_modules=PYTHON_ALLOWLIST,
             timeout_seconds=SANDBOX_TIMEOUT_SECONDS,
             working_directory=root,
-            signatures=(lambda: [python_stub(tool) for tool in lookup.tools]) if bridge else tuple,
+            callable_tools=(lambda: bridge.tool_names) if bridge else tuple,
         )

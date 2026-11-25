@@ -21,8 +21,8 @@ async def test_published_changes_reach_tools_list_and_python_executor_s_descript
             StubSandbox(),
             allowed_modules=(),
             timeout_seconds=10,
-            signatures=lambda: [
-                f"{tool.name}()" for tool in catalog.tools if tool.name != "python_executor"
+            callable_tools=lambda: [
+                tool.name for tool in catalog.tools if tool.name != "python_executor"
             ],
         )
     )
@@ -38,9 +38,9 @@ async def test_published_changes_reach_tools_list_and_python_executor_s_descript
     after_remove = listed(server)
 
     assert set(after_add) == {"python_executor", "file_reader", "grafana_search"}
-    assert "grafana_search()" in after_add["python_executor"]
+    assert "Tools callable in code: file_reader, grafana_search." in after_add["python_executor"]
     assert set(after_remove) == {"python_executor", "file_reader"}
-    assert "grafana_search()" not in after_remove["python_executor"]
+    assert "grafana_search" not in after_remove["python_executor"]
 
 
 async def test_a_published_tool_runs_through_the_use_case(logger) -> None:

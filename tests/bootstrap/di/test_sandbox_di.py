@@ -18,5 +18,5 @@ def test_python_tool_lists_the_tools_it_can_call_and_its_working_directory(
 
     tool: ExecutePython = sandbox.execute_python(ToolCatalog([Named("grafana_search")]))
 
-    assert "grafana_search(*, text: str, times: int = 1)" in tool.description
-    assert f"Working directory: {tmp_path}." in tool.description
+    assert "Tools callable in code: grafana_search." in tool.description
+    assert f"- Files: {tmp_path} is the code's current directory" in tool.description

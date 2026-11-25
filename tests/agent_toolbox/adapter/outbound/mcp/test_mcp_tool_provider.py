@@ -4,7 +4,6 @@ import pytest
 from pycraftcore.mcp import CallResult, McpUnavailableException, RemoteTool
 from pydantic import ValidationError
 
-from agent_toolbox.adapter.inbound.tool_text import call_signature
 from agent_toolbox.adapter.outbound.mcp.mcp_backed_tool import McpBackedTool
 from agent_toolbox.adapter.outbound.mcp.mcp_tool_provider import McpToolProvider, published_name
 from agent_toolbox.domain.exception.tool_failure import ToolFailure
@@ -65,7 +64,8 @@ async def test_tools_are_published_under_the_prefix_and_keep_their_remote_name()
         "list-databases",
         "find",
     ]
-    assert call_signature(tools[1]) == "mongodb_find(*, database: str, limit: int | None = 10)"
+    found = tools[1].input_model(database="kitchen")
+    assert (found.database, found.limit) == ("kitchen", 10)
 
 
 async def test_the_allowlist_keeps_only_the_named_remote_tools() -> None:

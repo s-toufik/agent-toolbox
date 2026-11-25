@@ -1,13 +1,8 @@
-import re
 from typing import Any
 
 from pydantic import BaseModel
 
 from agent_toolbox.application.port.outbound.tool_port import Tool
-
-LONGEST_SUMMARY: int = 160
-
-_SENTENCE_END = re.compile(r"(?<=[.!?])\s")
 
 _JSON_TYPES: dict[str, str] = {
     "string": "str",
@@ -18,36 +13,9 @@ _JSON_TYPES: dict[str, str] = {
 }
 
 
-def call_signature(tool: Tool) -> str:
-    schema: dict[str, Any] = tool.input_model.model_json_schema()
-    definitions: dict[str, Any] = schema.get("$defs", {})
-    required: set[str] = set(schema.get("required", ()))
-
-    parameters: list[str] = []
-    for name, field in schema.get("properties", {}).items():
-        parameter = f"{name}: {_render(field, definitions)}"
-        if name not in required:
-            parameter += f" = {field.get('default')!r}"
-        parameters.append(parameter)
-
-    return f"{tool.name}(*, {', '.join(parameters)})" if parameters else f"{tool.name}()"
-
-
 def return_shape(model: type[BaseModel]) -> str:
     schema: dict[str, Any] = model.model_json_schema()
     return _render(schema, schema.get("$defs", {}))
-
-
-def python_stub(tool: Tool) -> str:
-    stub: str = f"{call_signature(tool)} -> {return_shape(tool.output_model)}"
-    about: str = summary(tool.description)
-    return f"{stub}\n    {about}" if about else stub
-
-
-def summary(description: str) -> str:
-    first: str = _SENTENCE_END.split(description.strip(), maxsplit=1)[0]
-    first = " ".join(first.split())
-    return first if len(first) <= LONGEST_SUMMARY else first[: LONGEST_SUMMARY - 1].rstrip() + "…"
 
 
 def described(tool: Tool) -> str:
