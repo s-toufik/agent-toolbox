@@ -89,7 +89,7 @@ Write data to a file, replacing its contents: an object for json, yml, yaml; a l
 
 ##### `python_executor`
 
-Execute Python code for data analysis or computation.
+Run Python in a sandbox for heavy analysis and bulk tool calls: the other tools are functions inside the code, and their results stay out of your context.
 
 | Parameter | Type | | Description |
 |---|---|---|---|
@@ -103,7 +103,16 @@ A call with invalid arguments gets an error naming the bad fields. Every tool ad
 
 - allowed modules: pandas, numpy, matplotlib, datetime and the rest of pycraftcore's allowlist (listed in the tool's description);
 - 256 MB of memory, at most 8 runs at a time, and a hard timeout;
-- with `SANDBOX_TOOL_ACCESS=true`, the other tools are available inside the code as functions that return exactly what the tool returns. The tool's description lists each one in two lines, its Python signature and the first sentence of its description, so it stays small with many tools:
+- with `SANDBOX_TOOL_ACCESS=true`, the other tools are available inside the code as functions that return exactly what the tool returns. Their results stay in the sandbox: only `result` and what the code prints come back.
+
+The tool's description stays the same size however many tools there are. It is a lead sentence (what a tool catalog shows), a few rules and the names of the tools the code can call. Each tool's parameters are in its own schema in `tools/list`. The rules:
+
+- call a tool as a function with keyword arguments; a failing call raises `ToolError`;
+- use it for heavy work: many tool calls, large files, joins, aggregation, statistics, and return a summary or a file path;
+- look at a tool's data shape before writing code on it: one direct call with a small limit, or a short script that returns a single item;
+- pass plain JSON values, assign the final value to `result`, and use relative paths in the working directory.
+
+For example:
 
 ```python
 import pandas as pd
