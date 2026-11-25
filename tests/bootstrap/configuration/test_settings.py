@@ -23,3 +23,13 @@ def test_for_role_falls_back_to_defaults_when_nothing_is_set(monkeypatch) -> Non
 
     assert settings.environment == "debug"
     assert str(settings.configuration_directory) == "config"
+
+
+def test_the_jwt_settings_come_from_the_environment_and_the_key_is_never_shown(monkeypatch) -> None:
+    monkeypatch.setenv("JWT_KEY", "k" * 32)
+    monkeypatch.setenv("JWT_USERNAME", "toufik")
+
+    settings = ProcessSettings.for_role("toolbox")
+
+    assert (settings.jwt_key, settings.jwt_username) == ("k" * 32, "toufik")
+    assert "k" * 32 not in repr(settings)
