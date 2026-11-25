@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agent-toolbox"
-version = "1.3.0"
+version = "1.3.1"
 authors = [
     { name = "Toufik Saouchi", email = "toufik.saouchi@gmail.com" },
 ]
@@ -29,15 +29,11 @@ dependencies = [
     "starlette",
     "granian",
     "uvloop",
-    "mcp",
     "orjson",
-    "pycraftcore[application_configuration,authentication,context,file_handler,http,logger,query_language,repository,runtime-sandbox,telemetry,web]>=6.0.0",
+    "pycraftcore[application_configuration,authentication,context,file_handler,jwt,logger,mcp_sdk,query_language,repository,runtime-sandbox,telemetry,web_starlette]>=7.1.0",
     "pydantic>=2",
     "python-dotenv",
 ]
-
-[project.scripts]
-toolbox = "bootstrap.application.toolbox_application:main"
 
 [dependency-groups]
 dev = [
