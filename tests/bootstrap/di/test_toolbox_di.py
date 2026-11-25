@@ -42,9 +42,10 @@ async def test_python_tool_lists_the_data_tools_with_sandbox_tool_access(make_di
 
     [python] = [tool for tool in (await di._scope_tools()).tools if tool.name == "python_executor"]
 
-    assert "file_reader(*, file_path: str" in python.description
-    assert "users_tables(*, query: str, dialect: str = 'sqlite') -> {rows:" in python.description
-    assert f"Working directory: {tmp_path}." in python.description
+    assert "Tools callable in code: " in python.description
+    assert "file_reader" in python.description
+    assert "users_tables" in python.description
+    assert f"- Files: {tmp_path} is the code's current directory" in python.description
 
     await di._stop_factories()
 
@@ -61,9 +62,9 @@ async def test_each_scope_that_lists_python_executor_has_its_own_describing_only
     assert [tool.name for tool in kitchen.tools] == ["python_executor"]
     [coding_python] = [tool for tool in coding.tools if tool.name == "python_executor"]
     [kitchen_python] = [tool for tool in kitchen.tools if tool.name == "python_executor"]
-    assert "file_reader(*, file_path: str" in coding_python.description
-    assert "users_tables(" not in coding_python.description
-    assert "file_reader(" not in kitchen_python.description
+    assert "Tools callable in code: file_reader, file_writer." in coding_python.description
+    assert "users_tables" not in coding_python.description
+    assert "Tools callable in code" not in kitchen_python.description
     assert (
         await kitchen.get("python_executor").run(
             kitchen.get("python_executor").input_model(code="result = 6 * 7")
