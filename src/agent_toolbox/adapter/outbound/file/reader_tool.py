@@ -5,6 +5,14 @@ from typing import Any
 from pycraftcore.file_handler.enum.read_chunk_mode import ReadChunkMode
 from pycraftcore.file_handler.port import FileHandlerFactory, FileHandlerProvider
 
+from agent_toolbox.adapter.outbound.file.file_format import (
+    BINARY_FORMATS,
+    DOCUMENT_FORMATS,
+    TABLE_FORMATS,
+    TEXT_FORMATS,
+    extension,
+    listed,
+)
 from agent_toolbox.adapter.outbound.file.model.file_read_input import ReadFileInput
 from agent_toolbox.adapter.outbound.file.model.file_read_output import (
     LinesContent,
@@ -21,8 +29,10 @@ from agent_toolbox.domain.model.working_directory import WorkingDirectory
 class ReadFile(Tool[ReadFileInput, ReadFileOutput]):
     name = "file_reader"
     description = (
-        "Read a file and return its contents. Supported formats: yml, yaml, json, csv, md, txt, svg. "
-        f"Current system: {sys.platform}."
+        "Read a file and return its contents: a document for "
+        f"{listed(DOCUMENT_FORMATS)}; rows for {listed(TABLE_FORMATS)} (the first sheet of a "
+        f"workbook); text for {listed(TEXT_FORMATS)}. start and count read lines of a text "
+        f"file. Current system: {sys.platform}."
     )
     input_model = ReadFileInput
     output_model = ReadFileOutput
@@ -50,6 +60,11 @@ class ReadFile(Tool[ReadFileInput, ReadFileOutput]):
             else arguments.file_path
         )
         in_lines: bool = arguments.start is not None or arguments.count is not None
+        if in_lines and extension(path) in BINARY_FORMATS:
+            raise ToolFailure(
+                f"start and count read lines of a text file; a .{extension(path)} file is read "
+                "whole, so leave them out."
+            )
         handler: FileHandlerFactory = self._file_handler_provider(file_path=path)
 
         try:

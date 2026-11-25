@@ -7,6 +7,9 @@ class ReadFileInput(BaseModel):
     )
     start: int | None = Field(
         default=None,
-        description="Line number to start reading from (0-based). Giving start or count reads raw lines.",
+        description=(
+            "Line number to start reading from (0-based). Giving start or count reads raw "
+            "lines of a text file (csv included); xlsx, xls and parquet files are read whole."
+        ),
     )
     count: int | None = Field(default=None, description="Maximum number of lines to read.")
