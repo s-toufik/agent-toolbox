@@ -1,6 +1,6 @@
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class TextContent(BaseModel):
@@ -15,7 +15,12 @@ class StructuredContent(BaseModel):
 
 class RowsContent(BaseModel):
     format: Literal["rows"] = "rows"
-    rows: list[dict[str, Any]] = Field(description="Parsed CSV rows.")
+    rows: list[dict[str, Any]] = Field(
+        description=(
+            "Table rows, one object per row (csv, the first sheet of xlsx or xls, parquet). "
+            "Dates are ISO strings, binary cells base64."
+        )
+    )
 
 
 class LinesContent(BaseModel):
@@ -24,6 +29,8 @@ class LinesContent(BaseModel):
 
 
 class ReadFileOutput(BaseModel):
+    model_config = ConfigDict(ser_json_bytes="base64")
+
     path: str
     content: Annotated[
         TextContent | StructuredContent | RowsContent | LinesContent,

@@ -1,7 +1,13 @@
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from agent_toolbox.domain.model.dependency_state import DependencyState
+
+@dataclass(frozen=True)
+class DependencyState:
+    up: bool
+    since: datetime
+    error: str | None = None
 
 
 class DependencyHealth:
@@ -27,10 +33,6 @@ class DependencyHealth:
     def is_up(self, name: str) -> bool:
         state: DependencyState | None = self._states.get(name)
         return state is not None and state.up
-
-    @property
-    def all_up(self) -> bool:
-        return all(state.up for state in self._states.values())
 
     def snapshot(self) -> dict[str, DependencyState]:
         return dict(self._states)

@@ -6,6 +6,7 @@ from typing import Any
 from pycraftcore.context.request_id_context import request_id_context
 
 from agent_toolbox.adapter.inbound.sandbox.tool_bridge import SandboxToolBridge
+from agent_toolbox.application.catalog.tool_catalog import ToolCatalog
 from agent_toolbox.application.use_case.invoke_tool_usecase import InvokeToolUseCase
 from agent_toolbox.domain.exception.tool_failure import ToolFailure
 from tests.agent_toolbox.stubs import Echo
@@ -24,11 +25,13 @@ async def _call(bridge: SandboxToolBridge, function: str, **arguments: Any) -> d
 
 
 def test_serves_every_tool_of_its_invoker(logger) -> None:
-    assert SandboxToolBridge(InvokeToolUseCase([Echo()], logger)).tool_names == ("echo",)
+    assert SandboxToolBridge(InvokeToolUseCase(ToolCatalog([Echo()]), logger)).tool_names == (
+        "echo",
+    )
 
 
 async def test_returns_what_the_invoker_returns(logger) -> None:
-    bridge = SandboxToolBridge(InvokeToolUseCase([Echo()], logger))
+    bridge = SandboxToolBridge(InvokeToolUseCase(ToolCatalog([Echo()]), logger))
 
     response = await _call(bridge, "echo", text="ab", times=2)
 
@@ -37,7 +40,7 @@ async def test_returns_what_the_invoker_returns(logger) -> None:
 
 async def test_returns_the_tool_failure_message(logger) -> None:
     bridge = SandboxToolBridge(
-        InvokeToolUseCase([Echo(error=ToolFailure("File not found."))], logger)
+        InvokeToolUseCase(ToolCatalog([Echo(error=ToolFailure("File not found."))]), logger)
     )
 
     response = await _call(bridge, "echo", text="a")
@@ -53,7 +56,7 @@ async def test_calls_run_under_the_request_id_of_the_run_that_started_the_sandbo
             seen.append(request_id_context.get())
             return await super().invoke(name, arguments)
 
-    bridge = SandboxToolBridge(Recorder([Echo()], logger))
+    bridge = SandboxToolBridge(Recorder(ToolCatalog([Echo()]), logger))
     token = request_id_context.set("req-1")
     try:
         server = bridge.server()

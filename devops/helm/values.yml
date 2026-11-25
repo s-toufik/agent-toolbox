@@ -21,6 +21,10 @@ env:
   MONGODB_MCP_URL: http://mongodb-mcp:3000/mcp
   POSTGRES_MCP_URL: http://postgres-mcp:8000/sse
 
+secretEnv:
+  JWT_KEY: { secret: agent-toolbox-jwt, key: key }
+  JWT_USERNAME: { secret: agent-toolbox-jwt, key: username }
+
 probes:
   startup:
     httpGet:

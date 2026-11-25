@@ -3,45 +3,69 @@ operation:
     name: observation
     type: mcp
     connector: ${connector.self}
-    parameters:
-      tools: [grafana_*]
+    tools: [grafana_*]
+
   scope_analysis:
     name: analysis
     type: mcp
     connector: ${connector.self}
-    parameters:
-      tools: [postgres_*, mongodb_*, users_tables, file_reader, file_writer, python_executor]
+    tools: [postgres_*, mongodb_*, users_tables, file_reader, file_writer, python_executor]
+
   scope_coding:
     name: coding
     type: mcp
     connector: ${connector.self}
-    parameters:
-      tools: [file_reader, file_writer, python_executor]
+    tools: [file_reader, file_writer, python_executor]
+
   scope_security:
     name: security
     type: mcp
     connector: ${connector.self}
-    parameters:
-      tools: [grafana_*, users_tables]
+    tools: [grafana_*, users_tables]
+
   scope_kitchen:
     name: kitchen
     type: mcp
     connector: ${connector.self}
-    parameters:
-      tools:
-        - python_executor
-        - mongodb_find
-        - mongodb_aggregate
-        - mongodb_collection_schema
-        - mongodb_collection_indexes
-        - mongodb_list_collections
-        - postgres_list_schemas
-        - postgres_list_objects
-        - postgres_get_object_details
-        - postgres_execute_sql
+    tools:
+      - python_executor
+      - name: recipes_find
+        tool: mongodb_find
+        description: >-
+          Find recipes in the recipe index: one document per recipe with _id, title, course,
+          current_version_number, created_at and updated_at. Its content is in recipe_versions.
+        arguments: &recipes { connectionId: preconfigured, database: kitchen, collection: recipes }
+      - name: recipes_count
+        tool: mongodb_count
+        description: Count the recipes in the recipe index that match a query.
+        arguments: *recipes
+      - name: recipe_versions_find
+        tool: mongodb_find
+        description: >-
+          Find saved recipe versions: recipe_id, version_number, title, portions, prep and cook
+          times, ingredients (lines with quantity, unit and CIQUAL code), steps, sensory notes.
+          A recipe's current content is the version whose version_number is the recipe's
+          current_version_number.
+        arguments: &versions { connectionId: preconfigured, database: kitchen, collection: recipe_versions }
+      - name: recipe_versions_aggregate
+        tool: mongodb_aggregate
+        description: >-
+          Run an aggregation pipeline on the saved recipe versions; $lookup can join the recipes
+          collection of the same kitchen database.
+        arguments: *versions
+      - name: recipe_versions_schema
+        tool: mongodb_collection_schema
+        description: Show the fields of saved recipe versions, inferred from a sample.
+        arguments: *versions
+      - name: ingredients_table
+        tool: postgres_get_object_details
+        description: >-
+          Show the columns of the ingredients table (CIQUAL nutrition per 100 g: kcal, protein,
+          carbohydrate, fat and a nutrition object), with its constraints and indexes.
+        arguments: { schema_name: kitchen, object_name: ingredients, object_type: table }
+
   scope_travel:
     name: travel
     type: mcp
     connector: ${connector.self}
-    parameters:
-      tools: [python_executor]
+    tools: [python_executor]

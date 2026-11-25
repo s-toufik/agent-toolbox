@@ -49,7 +49,7 @@ def test_description_mentions_the_working_directory_and_callable_tools_when_conf
     description = _tool(
         StubSandbox(),
         working_directory="/work",
-        tool_signatures=["echo(*, text: str) -> {echoed: str}"],
+        signatures=lambda: ["echo(*, text: str) -> {echoed: str}"],
     ).description
 
     assert "Working directory: /work." in description

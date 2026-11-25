@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Protocol, runtime_checkable
+from typing import Protocol
 
 from agent_toolbox.application.port.outbound.tool_port import Tool
 
@@ -14,6 +14,5 @@ class CatalogChange:
         return bool(self.added or self.removed)
 
 
-@runtime_checkable
 class ToolPublisher(Protocol):
     def publish(self, change: CatalogChange) -> None: ...

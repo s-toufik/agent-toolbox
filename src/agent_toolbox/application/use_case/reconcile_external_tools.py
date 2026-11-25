@@ -34,10 +34,9 @@ class ReconcileExternalTools:
     def publish_to(self, publisher: ToolPublisher) -> None:
         self._publishers.append(publisher)
 
-    async def reconcile(self) -> bool:
+    async def reconcile(self) -> None:
         for source in self._sources:
             await self._reconcile(source)
-        return self._health.all_up
 
     async def run(self) -> None:
         async with asyncio.TaskGroup() as group:

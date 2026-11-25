@@ -9,7 +9,7 @@ class WriteFileInput(BaseModel):
     )
     data: dict[str, Any] | list[dict[str, Any]] | str = Field(
         description=(
-            "What to write: an object for json/yml/yaml, a list of row objects for csv, "
-            "a string for md/txt. Plain JSON values only."
+            "What to write: an object for json/yml/yaml, a list of row objects for "
+            "csv/xlsx/parquet, a string for md/txt/svg. Plain JSON values only."
         )
     )

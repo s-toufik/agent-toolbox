@@ -31,9 +31,6 @@ class ToolCatalog:
             raise ValueError(f"Duplicate tool name: '{tool.name}'")
         self._entries[tool.name] = _Entry(None, tool)
 
-    def without(self, *names: str) -> ToolCatalogView:
-        return ToolCatalogView(self, frozenset(names))
-
     def replace(self, source: str, tools: Iterable[Tool]) -> CatalogChange:
         current: dict[str, Tool] = {
             name: entry.tool for name, entry in self._entries.items() if entry.source == source
@@ -62,19 +59,6 @@ class ToolCatalog:
             self._entries[name] = _Entry(source, tool)
 
         return CatalogChange(tuple(added), tuple(removed), tuple(conflicts))
-
-
-class ToolCatalogView:
-    def __init__(self, catalog: ToolCatalog, hidden: frozenset[str]) -> None:
-        self._catalog = catalog
-        self._hidden = hidden
-
-    @property
-    def tools(self) -> tuple[Tool, ...]:
-        return tuple(tool for tool in self._catalog.tools if tool.name not in self._hidden)
-
-    def get(self, name: str) -> Tool | None:
-        return None if name in self._hidden else self._catalog.get(name)
 
 
 def _fingerprint(tool: Tool) -> str:
